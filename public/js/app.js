@@ -99,9 +99,12 @@ function sendReadyToServer(ready) {
 const $ = (sel) => document.querySelector(sel);
 
 function showScreen(id) {
+  const duel = id === "screen-game";
   document.querySelectorAll(".screen").forEach((s) => {
     s.classList.toggle("active", s.id === id);
   });
+  document.documentElement.classList.toggle("scg-duel-view", duel);
+  document.body.classList.toggle("scg-duel-view", duel);
 }
 
 function toast(msg) {
@@ -380,11 +383,15 @@ function openCardZoomPreview(cardId) {
   mount.textContent = "";
   mount.appendChild(makeCardFace(def, { wide: true }));
   back.hidden = false;
+  document.body.classList.add("scg-card-zoom-open");
+  document.documentElement.classList.add("scg-card-zoom-open");
 }
 
 function closeCardZoomPreview() {
   const back = document.getElementById("card-zoom-backdrop");
   if (back) back.hidden = true;
+  document.body.classList.remove("scg-card-zoom-open");
+  document.documentElement.classList.remove("scg-card-zoom-open");
 }
 
 function renderBattleLog(entries, youAre) {
@@ -793,14 +800,14 @@ function wireUi() {
     applyDuelZoomClass();
   });
 
-  $("#btn-card-zoom-close")?.addEventListener("click", () => {
-    closeCardZoomPreview();
-  });
-
   $("#card-zoom-backdrop")?.addEventListener("click", (e) => {
-    if (e.target.id === "card-zoom-backdrop") {
+    if (e.target === e.currentTarget) {
       closeCardZoomPreview();
     }
+  });
+
+  $("#card-zoom-surface")?.addEventListener("click", (e) => {
+    e.stopPropagation();
   });
 
   document.addEventListener("keydown", (e) => {

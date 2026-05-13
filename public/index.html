@@ -22,14 +22,13 @@
     <div id="toast" class="toast" hidden></div>
 
     <div id="card-zoom-backdrop" class="card-zoom-backdrop" hidden>
-      <div class="card-zoom-dialog" role="dialog" aria-modal="true">
-        <button
-          type="button"
-          class="btn ghost card-zoom-close"
-          id="btn-card-zoom-close"
-        >
-          閉じる
-        </button>
+      <div
+        id="card-zoom-surface"
+        class="card-zoom-surface"
+        role="dialog"
+        aria-modal="true"
+        aria-label="カード拡大"
+      >
         <div id="card-zoom-mount" class="card-zoom-mount"></div>
       </div>
     </div>
@@ -255,7 +254,8 @@
               <div class="turn-banner" id="turn-banner">同時行動中</div>
               <p class="duel-zoom-hint">
                 相手のカードはクリック、自分の手札は
-                <kbd>Ctrl</kbd>+クリック（Mac は <kbd>⌘</kbd>）で拡大できます。
+                <kbd>Ctrl</kbd>+クリック（Mac は <kbd>⌘</kbd>）で拡大。
+                拡大中は周りの暗い部分をクリック（または Esc）で閉じます。
               </p>
               <div class="game-actions">
                 <button type="button" class="btn ghost" id="btn-duel-zoom-toggle">

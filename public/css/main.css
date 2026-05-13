@@ -21,18 +21,48 @@
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
   background: radial-gradient(1200px 800px at 20% 0%, #1f2937 0%, var(--bg) 55%);
   color: var(--text);
 }
 
+html.scg-duel-view,
+body.scg-duel-view {
+  height: 100%;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+html.scg-card-zoom-open,
+body.scg-card-zoom-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.scg-duel-view .shell {
+  flex: 1;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+body.scg-card-zoom-open .shell {
+  overflow: hidden;
+}
+
 .shell {
-  max-width: 1100px;
+  max-width: min(1320px, 100%);
+  width: 100%;
   margin: 0 auto;
-  padding: 0.85rem 1rem 0.65rem;
+  padding: 0.65rem clamp(0.5rem, 2.8vw, 1.85rem) 0.5rem;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -41,7 +71,11 @@ body {
 
 .topbar {
   text-align: center;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.85rem;
+}
+
+body.scg-duel-view .topbar {
+  margin-bottom: 0.5rem;
 }
 
 .logo {
@@ -69,7 +103,7 @@ body {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  max-height: calc(100dvh - 5.25rem);
+  max-height: calc(100dvh - 4.25rem);
   overflow: hidden;
 }
 
@@ -229,7 +263,7 @@ h3 {
   position: relative;
   width: 140px;
   min-height: 190px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: linear-gradient(160deg, #2a3038, #1a1f26);
   border: 1px solid var(--card-border);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
@@ -553,9 +587,9 @@ h3 {
   min-height: 0;
   max-height: 100%;
   overflow: hidden;
-  max-width: 1100px;
-  margin: 0 auto;
+  max-width: 100%;
   width: 100%;
+  margin: 0 auto;
 }
 
 .duel-opp-field,
@@ -927,57 +961,59 @@ h3 {
   position: fixed;
   inset: 0;
   z-index: 200;
-  display: grid;
-  place-items: center;
-  padding: 1rem;
-  background: rgba(0, 0, 0, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.6rem, 3vw, 2rem);
+  background: rgba(0, 0, 0, 0.76);
   box-sizing: border-box;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .card-zoom-backdrop[hidden] {
   display: none !important;
 }
 
-.card-zoom-dialog {
+.card-zoom-surface {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  max-width: min(420px, 94vw);
-  max-height: min(88dvh, 640px);
-  overflow: auto;
-  padding: 0.5rem;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: var(--shadow);
-}
-
-.card-zoom-close {
-  align-self: flex-end;
-  margin-bottom: 0.35rem;
-  flex-shrink: 0;
+  z-index: 1;
+  width: min(100%, 400px);
+  max-width: min(400px, calc(100vw - 2 * clamp(0.6rem, 3vw, 2rem)));
+  max-height: min(76dvh, 560px);
+  padding: clamp(0.65rem, 2.2vw, 1.1rem);
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(165deg, #222831 0%, #141920 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 20px 50px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  pointer-events: auto;
 }
 
 .card-zoom-mount {
   display: flex;
   justify-content: center;
-  padding: 0.35rem 0 0.25rem;
-  flex: 1 1 auto;
-  min-height: 0;
+  align-items: center;
+  width: 100%;
+  max-height: min(calc(76dvh - 2.5rem), 500px);
+  overflow: hidden;
 }
 
 .card-zoom-mount .card-face.wide {
-  transform: scale(1.22);
-  transform-origin: top center;
+  transform: scale(1.12);
+  transform-origin: center center;
+  flex-shrink: 0;
 }
 
 @media (min-width: 960px) {
   .duel-field {
     display: grid;
-    grid-template-columns: 1fr minmax(200px, 24%);
+    grid-template-columns: 1fr minmax(232px, 30%);
     grid-template-rows: auto 1fr;
-    column-gap: 0.75rem;
+    column-gap: clamp(0.5rem, 1.5vw, 1.25rem);
     row-gap: 0.4rem;
     align-items: stretch;
     min-height: 0;
