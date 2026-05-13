@@ -5,6 +5,7 @@ const LS_DECKS = "scg_decks_v1";
 const LS_EDITOR_DECK = "scg_editor_deck_id";
 const LS_LOBBY_DECK = "scg_lobby_deck_id";
 const MAX_SAVED_DECKS = 16;
+const SS_DUEL_ZOOM_LG = "scg_duel_zoom_lg";
 
 let catalogById = {};
 let initialDeckIds = [];
@@ -127,17 +128,35 @@ function renderCardBody(container, card) {
 function makeCardFace(card, { wide } = {}) {
   const root = document.createElement("div");
   root.className = wide ? "card-face wide" : "card-face";
+  if (card?.id) root.dataset.cardId = card.id;
+
+  const inner = document.createElement("div");
+  inner.className = "card-inner";
+
+  const headPanel = document.createElement("div");
+  headPanel.className = "card-panel card-panel--head";
+
+  const title = document.createElement("div");
+  title.className = "card-title";
+  title.textContent = card.name || card.id;
+
   const cost = document.createElement("div");
   cost.className = "card-cost";
   const c = Math.min(5, Math.max(0, card.cost | 0));
   cost.textContent = COST_MARK[c] || String(c);
-  const title = document.createElement("div");
-  title.className = "card-title";
-  title.textContent = card.name || card.id;
+
+  headPanel.append(title, cost);
+
+  const bodyPanel = document.createElement("div");
+  bodyPanel.className = "card-panel card-panel--body";
+
   const body = document.createElement("div");
   body.className = "card-body";
   renderCardBody(body, card);
-  root.append(cost, title, body);
+
+  bodyPanel.appendChild(body);
+  inner.append(headPanel, bodyPanel);
+  root.appendChild(inner);
   return root;
 }
 
@@ -340,6 +359,34 @@ let lastBattleLogSeq = 0;
 let lastSelfAttack = -1;
 let lastOppAttack = -1;
 
+function applyDuelZoomClass() {
+  const g = document.getElementById("screen-game");
+  if (!g) return;
+  const lg = sessionStorage.getItem(SS_DUEL_ZOOM_LG) === "1";
+  g.classList.toggle("duel-zoom-lg", lg);
+  const btn = document.getElementById("btn-duel-zoom-toggle");
+  if (btn) {
+    btn.textContent = lg ? "カード: 大" : "カード: 標準";
+    btn.setAttribute("aria-pressed", lg ? "true" : "false");
+  }
+}
+
+function openCardZoomPreview(cardId) {
+  const def = catalogById[cardId];
+  if (!def) return;
+  const mount = document.getElementById("card-zoom-mount");
+  const back = document.getElementById("card-zoom-backdrop");
+  if (!mount || !back) return;
+  mount.textContent = "";
+  mount.appendChild(makeCardFace(def, { wide: true }));
+  back.hidden = false;
+}
+
+function closeCardZoomPreview() {
+  const back = document.getElementById("card-zoom-backdrop");
+  if (back) back.hidden = true;
+}
+
 function renderBattleLog(entries, youAre) {
   const box = $("#battle-log");
   if (!box) return;
@@ -370,6 +417,7 @@ function renderBattleLog(entries, youAre) {
 
 function onGameState(state) {
   showScreen("screen-game");
+  applyDuelZoomClass();
   lastGameYouAre = state.youAre;
   $("#opp-hp").textContent = String(state.opponent.hp);
   $("#self-hp").textContent = String(state.you.hp);
@@ -435,7 +483,14 @@ function onGameState(state) {
     oppStrip.textContent = "";
     const oh = state.opponent.hand || [];
     for (const c of oh) {
-      oppStrip.appendChild(makeCardFace(c));
+      const el = makeCardFace(c);
+      el.title = "クリックで拡大表示";
+      el.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openCardZoomPreview(c.id);
+      });
+      oppStrip.appendChild(el);
     }
   }
 
@@ -449,11 +504,21 @@ function onGameState(state) {
     el.dataset.index = String(idx);
     const affordable = canPlay && (card.cost | 0) <= state.you.costPool;
     if (!affordable) el.classList.add("disabled");
-    if (canPlay && affordable) {
-      el.addEventListener("click", () => {
+    el.title =
+      canPlay && affordable
+        ? "クリックで使用 · Ctrl+クリックで拡大（Mac は ⌘）"
+        : "Ctrl+クリックで拡大（Mac は ⌘）";
+    el.addEventListener("click", (ev) => {
+      if (ev.ctrlKey || ev.metaKey) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openCardZoomPreview(card.id);
+        return;
+      }
+      if (canPlay && affordable) {
         playCardAction(idx);
-      });
-    }
+      }
+    });
     hand.appendChild(el);
   });
 
@@ -463,6 +528,7 @@ function onGameState(state) {
 }
 
 function onGameOver(payload) {
+  closeCardZoomPreview();
   lastBattleLogSeq = 0;
   lastSelfAttack = -1;
   lastOppAttack = -1;
@@ -721,6 +787,31 @@ function wireUi() {
     endTurnAction();
   });
 
+  $("#btn-duel-zoom-toggle")?.addEventListener("click", () => {
+    const next = sessionStorage.getItem(SS_DUEL_ZOOM_LG) === "1" ? "0" : "1";
+    sessionStorage.setItem(SS_DUEL_ZOOM_LG, next);
+    applyDuelZoomClass();
+  });
+
+  $("#btn-card-zoom-close")?.addEventListener("click", () => {
+    closeCardZoomPreview();
+  });
+
+  $("#card-zoom-backdrop")?.addEventListener("click", (e) => {
+    if (e.target.id === "card-zoom-backdrop") {
+      closeCardZoomPreview();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const back = document.getElementById("card-zoom-backdrop");
+      if (back && !back.hidden) {
+        closeCardZoomPreview();
+      }
+    }
+  });
+
   $("#btn-result-home").addEventListener("click", async () => {
     await disposeSkyWay();
     showScreen("screen-title");
@@ -844,6 +935,7 @@ async function openDeckBuilder() {
 
 window.addEventListener("DOMContentLoaded", async () => {
   wireUi();
+  applyDuelZoomClass();
   try {
     await fetchCatalog();
   } catch {

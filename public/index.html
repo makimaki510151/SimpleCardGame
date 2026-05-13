@@ -21,6 +21,19 @@
   <body>
     <div id="toast" class="toast" hidden></div>
 
+    <div id="card-zoom-backdrop" class="card-zoom-backdrop" hidden>
+      <div class="card-zoom-dialog" role="dialog" aria-modal="true">
+        <button
+          type="button"
+          class="btn ghost card-zoom-close"
+          id="btn-card-zoom-close"
+        >
+          閉じる
+        </button>
+        <div id="card-zoom-mount" class="card-zoom-mount"></div>
+      </div>
+    </div>
+
     <main class="shell">
       <header class="topbar">
         <h1 class="logo">Simple Card</h1>
@@ -240,7 +253,14 @@
                 >
               </div>
               <div class="turn-banner" id="turn-banner">同時行動中</div>
+              <p class="duel-zoom-hint">
+                相手のカードはクリック、自分の手札は
+                <kbd>Ctrl</kbd>+クリック（Mac は <kbd>⌘</kbd>）で拡大できます。
+              </p>
               <div class="game-actions">
+                <button type="button" class="btn ghost" id="btn-duel-zoom-toggle">
+                  カード: 標準
+                </button>
                 <button type="button" class="btn primary" id="btn-end-turn">
                   このラウンドを確定
                 </button>
