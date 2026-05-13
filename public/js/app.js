@@ -2,17 +2,13 @@ const COST_MARK = ["", "①", "②", "③", "④", "⑤"];
 
 const LS_DECK = "scg_deck_v1";
 
-let socket = null;
 let catalogById = {};
 let initialDeckIds = [];
 let currentDeck = [];
 let lastGameYouAre = 0;
 let lobbyCatalogLoaded = false;
 
-const LS_TOKEN_URL = "scg_skyway_token_url";
-
 let skywaySession = null;
-let currentTransport = "socket";
 
 function assetBase() {
   return window.__SCG_BASE__ || "/";
@@ -22,30 +18,9 @@ function resolveUrl(rel) {
   return new URL(rel, assetBase()).href;
 }
 
-function getTransportMode() {
-  const el = document.querySelector('input[name="transport"]:checked');
-  return el?.value === "skyway" ? "skyway" : "socket";
-}
-
-function syncTransportUi() {
-  const sky = getTransportMode() === "skyway";
-  const hint = document.getElementById("skyway-token-hint");
-  const inp = document.getElementById("input-skyway-token-url");
-  if (hint) hint.hidden = !sky;
-  if (inp) {
-    inp.hidden = !sky;
-    if (sky) {
-      const saved = localStorage.getItem(LS_TOKEN_URL);
-      if (saved) inp.value = saved;
-      else if (!inp.value) inp.value = resolveUrl("api/skyway-token");
-    }
-  }
-}
-
-function getSkyWayTokenUrl() {
-  const inp = document.getElementById("input-skyway-token-url");
-  const v = (inp?.value || "").trim();
-  return v || resolveUrl("api/skyway-token");
+/** 常に同一オリジンの SkyWay トークン API */
+function skyWayTokenUrl() {
+  return resolveUrl("api/skyway-token");
 }
 
 function randomRoomCode() {
@@ -73,39 +48,35 @@ async function disposeSkyWay() {
 }
 
 function playCardAction(handIndex) {
-  if (skywaySession) {
-    skywaySession.playCard(handIndex);
-  } else {
-    const s = ensureSocket();
-    if (s) s.emit("playCard", { handIndex });
+  if (!skywaySession) {
+    toast("接続がありません");
+    return;
   }
+  skywaySession.playCard(handIndex);
 }
 
 function endTurnAction() {
-  if (skywaySession) {
-    skywaySession.endTurn();
-  } else {
-    const s = ensureSocket();
-    if (s) s.emit("endTurn");
+  if (!skywaySession) {
+    toast("接続がありません");
+    return;
   }
+  skywaySession.endTurn();
 }
 
 function sendDeckToServer(cardIds) {
-  if (skywaySession) {
-    skywaySession.setDeck(cardIds);
-  } else {
-    const s = ensureSocket();
-    if (s) s.emit("setDeck", { cardIds });
+  if (!skywaySession) {
+    toast("接続がありません");
+    return;
   }
+  skywaySession.setDeck(cardIds);
 }
 
 function sendReadyToServer(ready) {
-  if (skywaySession) {
-    skywaySession.setReady(ready);
-  } else {
-    const s = ensureSocket();
-    if (s) s.emit("setReady", { ready });
+  if (!skywaySession) {
+    toast("接続がありません");
+    return;
   }
+  skywaySession.setReady(ready);
 }
 
 const $ = (sel) => document.querySelector(sel);
@@ -185,53 +156,6 @@ function validateDeckClient(ids) {
     }
   }
   return { ok: true };
-}
-
-function wireSocket(s) {
-  s.on("roomJoined", onRoomJoined);
-  s.on("roomUpdate", onRoomUpdate);
-  s.on("roomError", (p) => toast(p.message || "エラー"));
-  s.on("deckError", (p) => toast(p.message || "デッキエラー"));
-  s.on("actionError", (p) => toast(p.message || "操作エラー"));
-  s.on("gameState", onGameState);
-  s.on("gameOver", onGameOver);
-  s.on("opponentLeft", () => {
-    toast("相手が退出しました");
-    showScreen("screen-online-menu");
-  });
-}
-
-function ensureSocket() {
-  if (typeof io === "undefined") {
-    toast(
-      "Socket.io が使えません。静的ホスティングでは「SkyWay」を選ぶか、npm start でサーバーを起動してください。"
-    );
-    return null;
-  }
-  if (!socket) {
-    socket = io({ transports: ["websocket", "polling"] });
-    wireSocket(socket);
-  }
-  return socket;
-}
-
-function onRoomJoined(payload) {
-  showScreen("screen-lobby");
-  $("#lobby-code").textContent = payload.code;
-  $("#chk-ready").checked = false;
-  if (payload.catalog?.cards) {
-    for (const c of payload.catalog.cards) {
-      catalogById[c.id] = c;
-    }
-    initialDeckIds = payload.catalog.initialDeck?.slice() || initialDeckIds;
-    lobbyCatalogLoaded = true;
-  }
-  renderLobbyPlayers(payload.players || []);
-  autoSendDeckIfPossible();
-}
-
-function onRoomUpdate(payload) {
-  renderLobbyPlayers(payload.players || []);
 }
 
 function onSkyWayLobby(msg) {
@@ -444,20 +368,13 @@ function wireUi() {
   });
 
   $("#btn-create-room").addEventListener("click", async () => {
-    currentTransport = getTransportMode();
-    if (currentTransport === "socket") {
-      const s = ensureSocket();
-      if (s) s.emit("createRoom", {});
-      return;
-    }
     try {
       await fetchCatalog();
     } catch {
       toast("カードデータの読み込みに失敗しました");
       return;
     }
-    const tokenUrl = getSkyWayTokenUrl();
-    localStorage.setItem(LS_TOKEN_URL, tokenUrl);
+    const tokenUrl = skyWayTokenUrl();
     const code = randomRoomCode();
     const roomName = `scg_${code}`;
     toast("SkyWay に接続中…");
@@ -487,15 +404,9 @@ function wireUi() {
   });
 
   $("#btn-join-room").addEventListener("click", async () => {
-    currentTransport = getTransportMode();
     const code = $("#input-room-code").value.trim().toUpperCase();
     if (code.length !== 6) {
       toast("6桁のルームコードを入力してください");
-      return;
-    }
-    if (currentTransport === "socket") {
-      const s = ensureSocket();
-      if (s) s.emit("joinRoom", { code });
       return;
     }
     try {
@@ -504,8 +415,7 @@ function wireUi() {
       toast("カードデータの読み込みに失敗しました");
       return;
     }
-    const tokenUrl = getSkyWayTokenUrl();
-    localStorage.setItem(LS_TOKEN_URL, tokenUrl);
+    const tokenUrl = skyWayTokenUrl();
     const roomName = `scg_${code}`;
     toast("SkyWay に接続中…");
     try {
@@ -534,12 +444,7 @@ function wireUi() {
   });
 
   $("#btn-leave-lobby").addEventListener("click", async () => {
-    if (skywaySession) {
-      await disposeSkyWay();
-    } else {
-      const s = ensureSocket();
-      if (s) s.emit("leaveRoom");
-    }
+    await disposeSkyWay();
     showScreen("screen-online-menu");
   });
 
@@ -576,25 +481,9 @@ function wireUi() {
   });
 
   $("#btn-result-home").addEventListener("click", async () => {
-    if (skywaySession) {
-      await disposeSkyWay();
-    } else {
-      const s = ensureSocket();
-      if (s) s.emit("leaveRoom");
-    }
+    await disposeSkyWay();
     showScreen("screen-title");
   });
-
-  const skyTok = document.getElementById("input-skyway-token-url");
-  if (skyTok) {
-    skyTok.addEventListener("change", () => {
-      localStorage.setItem(LS_TOKEN_URL, skyTok.value.trim());
-    });
-  }
-  document.querySelectorAll('input[name="transport"]').forEach((r) => {
-    r.addEventListener("change", syncTransportUi);
-  });
-  syncTransportUi();
 
   $("#btn-deck-clear").addEventListener("click", () => {
     currentDeck = [];
@@ -638,6 +527,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   try {
     await fetchCatalog();
   } catch {
-    /* オフライン表示はサーバー起動後に再試行 */
+    /* 初回は静的データへフォールバック可能 */
   }
 });

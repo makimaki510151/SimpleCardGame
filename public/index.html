@@ -15,7 +15,6 @@
       })();
     </script>
     <link rel="stylesheet" href="css/main.css" />
-    <script src="socket.io/socket.io.js" defer></script>
     <script src="js/app.js" defer></script>
   </head>
   <body>
@@ -43,28 +42,11 @@
       <section id="screen-online-menu" class="screen">
         <div class="panel">
           <button type="button" class="btn back" data-back="title">← 戻る</button>
-          <h2>オンライン対戦</h2>
-          <div class="transport-row">
-            <label class="check"
-              ><input type="radio" name="transport" value="socket" checked />
-              自前サーバー（Socket.io）</label
-            >
-            <label class="check"
-              ><input type="radio" name="transport" value="skyway" />
-              インターネット（SkyWay）</label
-            >
-          </div>
-          <p class="hint" id="skyway-token-hint" hidden>
-            SkyWay 用トークン API の URL（HTTPS）を指定してください。GitHub Pages
-            等の静的ホスティングでは Cloudflare Workers 等にトークン発行を置きます。
+          <h2>オンライン対戦（SkyWay）</h2>
+          <p class="hint">
+            同一サイトの <code>api/skyway-token</code> からトークンを取得します。ホスティング側で
+            SkyWay の環境変数を設定してください。
           </p>
-          <input
-            id="input-skyway-token-url"
-            class="input skyway-token-input"
-            type="url"
-            placeholder="例: https://your-worker.workers.dev/skyway-token"
-            hidden
-          />
           <div class="stack">
             <button type="button" class="btn primary" id="btn-create-room">
               ルームを建てる
@@ -96,10 +78,10 @@
           <ul id="lobby-players" class="lobby-list"></ul>
           <div class="lobby-actions stack">
             <button type="button" class="btn" id="btn-use-saved-deck">
-              保存デッキをサーバーに送る
+              保存デッキを送る
             </button>
             <button type="button" class="btn ghost" id="btn-use-initial-deck">
-              初期デッキで送る
+              初期デッキを送る
             </button>
             <label class="check">
               <input type="checkbox" id="chk-ready" />
