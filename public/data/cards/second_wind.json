@@ -1,11 +1,16 @@
 {
   "id": "second_wind",
   "name": "セカンドウィンド",
-  "cost": 4,
+  "cost": 3,
   "body": [
     { "t": "自分のHPを ", "c": "muted" },
-    { "t": "22", "c": "heal" },
-    { "t": " 回復。", "c": "muted" }
+    { "t": "17", "c": "heal" },
+    { "t": " 回復。カードを ", "c": "muted" },
+    { "t": "1", "c": "draw" },
+    { "t": " 引く。", "c": "muted" }
   ],
-  "effects": [{ "type": "heal", "value": 22 }]
+  "effects": [
+    { "type": "heal", "value": 17 },
+    { "type": "draw", "value": 1 }
+  ]
 }

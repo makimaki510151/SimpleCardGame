@@ -1,0 +1,23 @@
+{
+  "id": "mirror_blow",
+  "name": "ミラーブロウ",
+  "cost": 1,
+  "body": [
+    { "t": "交戦力 ", "c": "muted" },
+    { "t": "2", "c": "damage" },
+    { "t": "。相手のHPが ", "c": "muted" },
+    { "t": "50", "c": "condition" },
+    { "t": " 以上ならさらに ", "c": "muted" },
+    { "t": "3", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "damage", "value": 2 },
+    {
+      "type": "damageIf",
+      "mode": "opponentHpGte",
+      "threshold": 50,
+      "value": 3
+    }
+  ]
+}

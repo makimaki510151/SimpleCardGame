@@ -1,0 +1,26 @@
+{
+  "id": "twin_line",
+  "name": "ツインライン",
+  "cost": 2,
+  "body": [
+    { "t": "交戦力 ", "c": "muted" },
+    { "t": "4", "c": "damage" },
+    { "t": "。自分の手札が ", "c": "muted" },
+    { "t": "5", "c": "condition" },
+    { "t": " 以上ならさらに ", "c": "muted" },
+    { "t": "5", "c": "damage" },
+    { "t": "。カードを ", "c": "muted" },
+    { "t": "1", "c": "draw" },
+    { "t": " 引く。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "damage", "value": 4 },
+    {
+      "type": "damageIf",
+      "mode": "selfHandGte",
+      "threshold": 5,
+      "value": 5
+    },
+    { "type": "draw", "value": 1 }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "risk_pull",
+  "name": "危険引き",
+  "cost": 0,
+  "body": [
+    { "t": " ", "c": "draw" },
+    { "t": "2", "c": "draw" },
+    { "t": " ドローし、自分の手札を ", "c": "muted" },
+    { "t": "1", "c": "discard" },
+    { "t": " 枚ランダムで捨てる。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "draw", "value": 2 },
+    { "type": "discardSelf", "value": 1 }
+  ]
+}

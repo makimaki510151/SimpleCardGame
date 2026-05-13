@@ -365,7 +365,7 @@ let lastOppAttack = -1;
 function applyDuelZoomClass() {
   const g = document.getElementById("screen-game");
   if (!g) return;
-  const lg = sessionStorage.getItem(SS_DUEL_ZOOM_LG) === "1";
+  const lg = sessionStorage.getItem(SS_DUEL_ZOOM_LG) !== "0";
   g.classList.toggle("duel-zoom-lg", lg);
   const btn = document.getElementById("btn-duel-zoom-toggle");
   if (btn) {
@@ -435,6 +435,10 @@ function onGameState(state) {
   $("#opp-disc").textContent = String(state.opponent.discardCount);
   $("#self-deck").textContent = String(state.you.deckCount);
   $("#self-disc").textContent = String(state.you.discardCount);
+  const selfHandCt = $("#self-hand");
+  if (selfHandCt) {
+    selfHandCt.textContent = String(state.you.hand?.length ?? 0);
+  }
   $("#turn-no").textContent = String(state.roundNumber);
 
   const oStock = String(state.opponent.attackStock | 0);
@@ -795,8 +799,12 @@ function wireUi() {
   });
 
   $("#btn-duel-zoom-toggle")?.addEventListener("click", () => {
-    const next = sessionStorage.getItem(SS_DUEL_ZOOM_LG) === "1" ? "0" : "1";
-    sessionStorage.setItem(SS_DUEL_ZOOM_LG, next);
+    const cur = sessionStorage.getItem(SS_DUEL_ZOOM_LG);
+    if (cur === "0") {
+      sessionStorage.removeItem(SS_DUEL_ZOOM_LG);
+    } else {
+      sessionStorage.setItem(SS_DUEL_ZOOM_LG, "0");
+    }
     applyDuelZoomClass();
   });
 

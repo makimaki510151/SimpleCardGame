@@ -1,0 +1,11 @@
+{
+  "id": "bind_tick",
+  "name": "締めの一針",
+  "cost": 0,
+  "body": [
+    { "t": "次ラウンド、相手のコスト上限を ", "c": "muted" },
+    { "t": "4", "c": "cap" },
+    { "t": " に。", "c": "muted" }
+  ],
+  "effects": [{ "type": "capOpponentNextTurn", "cap": 4 }]
+}
