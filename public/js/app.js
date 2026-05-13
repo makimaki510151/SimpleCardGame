@@ -172,11 +172,13 @@ function renderCardBody(container, card) {
     const ixMuted = bonusStart - 1;
     if (ixMuted > 0) {
       const before = parts[ixMuted - 1].c;
+      const mutedTxt = (parts[ixMuted].t || "").trim();
       if (
         before === "draw" ||
         before === "heal" ||
         before === "damage" ||
-        before === "discard"
+        before === "discard" ||
+        (before === "cap" && mutedTxt === "に。")
       ) {
         break;
       }

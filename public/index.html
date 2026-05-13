@@ -155,11 +155,21 @@
                 autocomplete="off"
               />
             </label>
+          </div>
+          <div class="deck-editor-actions">
             <button type="button" class="btn ghost" id="btn-deck-copy">
               このデッキをコピー
             </button>
             <button type="button" class="btn ghost" id="btn-deck-delete-editor">
               このデッキを削除
+            </button>
+          </div>
+          <div class="deck-footer">
+            <button type="button" class="btn ghost" id="btn-deck-clear">
+              空にする
+            </button>
+            <button type="button" class="btn primary" id="btn-deck-save">
+              保存
             </button>
           </div>
           <p class="deck-meta">
@@ -196,14 +206,6 @@
             </div>
             <p class="hint catalog-hint">カードをクリックでデッキに1枚追加（同種3枚・合計20枚まで）</p>
             <div id="catalog-grid" class="catalog-grid"></div>
-          </div>
-          <div class="deck-footer">
-            <button type="button" class="btn ghost" id="btn-deck-clear">
-              空にする
-            </button>
-            <button type="button" class="btn primary" id="btn-deck-save">
-              保存
-            </button>
           </div>
         </div>
       </section>

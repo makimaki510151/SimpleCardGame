@@ -475,6 +475,13 @@ h3 {
   text-transform: none;
 }
 
+.deck-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin: 0 0 0.35rem;
+}
+
 .lobby-deck-row {
   display: flex;
   flex-direction: column;
@@ -542,7 +549,7 @@ h3 {
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
-  margin-top: 0.75rem;
+  margin: 0 0 0.5rem;
 }
 
 /* 対戦（1画面・手札折り返し・カード寸法統一） */
