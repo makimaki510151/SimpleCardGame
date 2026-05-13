@@ -1,0 +1,3 @@
+# ローカルで wrangler pages dev するときのみ使用（Git に含めない）
+SKYWAY_APP_ID=
+SKYWAY_SECRET_KEY=
