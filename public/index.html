@@ -218,7 +218,7 @@
           </div>
 
           <div class="duel-self-field">
-            <div class="duel-field-split duel-field-split--self">
+            <div class="duel-self-main">
               <div
                 class="duel-pile-column"
                 aria-label="あなたの山札・捨て札・手札枚数"
@@ -236,69 +236,72 @@
                   <span id="self-hand" class="pile-num">0</span>
                 </div>
               </div>
-              <div class="duel-play-column duel-play-column--self">
-                <div class="duel-hand-lane duel-hand-lane--self">
-                  <span class="duel-hand-lane-label">あなたの手札</span>
-                  <div id="hand" class="hand duel-hand-self"></div>
+              <div class="duel-hand-mat" aria-label="あなたの手札">
+                <div class="duel-hand-mat-head">
+                  <span class="duel-hand-mat-player">あなた</span>
+                  <span class="duel-hand-lane-label">手札</span>
                 </div>
-                <footer class="duel-field-foot">
-                  <div class="duel-foot-left">
-                    <div class="duel-round-badge">
-                      ラウンド <span id="turn-no">1</span>
-                    </div>
-                    <div
-                      class="duel-attack-block duel-attack-block--self"
-                      aria-label="あなたの交戦力"
-                    >
-                      <span class="duel-attack-label">交戦力</span>
-                      <span
-                        id="self-attack-stock"
-                        class="attack-stock duel-attack-num"
-                        >0</span
-                      >
-                    </div>
-                    <div class="duel-id-block">
-                      <span class="duel-player-name">あなた</span>
-                      <span class="duel-hp-line"
-                        >HP <span id="self-hp" class="duel-hp-num">100</span
-                        ><span class="duel-hp-max">/100</span></span
-                      >
-                      <span id="self-lock-badge" class="lock-badge" hidden
-                        >確定済</span
-                      >
-                    </div>
-                    <div class="duel-cost-line" id="cost-bar">
-                      コスト
-                      <span class="duel-cost-nums"
-                        ><span id="cost-current">5</span> /
-                        <span id="cost-max">5</span></span
-                      >
-                    </div>
-                    <div class="turn-banner" id="turn-banner">同時行動中</div>
-                  </div>
-                  <div class="duel-foot-right">
-                    <p class="duel-zoom-hint">
-                      対戦中のカードは「大」表示が既定です（ボタンで標準に切替）。
-                      相手のカードはクリック、自分の手札は
-                      <kbd>Ctrl</kbd>+クリック（Mac は <kbd>⌘</kbd>）で拡大。
-                      拡大中は周りの暗い部分をクリック（または Esc）で閉じます。
-                    </p>
-                    <div class="game-actions">
-                      <button
-                        type="button"
-                        class="btn ghost"
-                        id="btn-duel-zoom-toggle"
-                      >
-                        カード: 大
-                      </button>
-                      <button type="button" class="btn primary" id="btn-end-turn">
-                        このラウンドを確定
-                      </button>
-                    </div>
-                  </div>
-                </footer>
+                <div id="hand" class="hand duel-hand-self"></div>
               </div>
             </div>
+            <footer class="duel-field-foot">
+              <div class="duel-foot-left">
+                <div class="duel-foot-stats">
+                  <span class="duel-round-badge"
+                    >R<span id="turn-no">1</span></span
+                  >
+                  <span class="duel-stat-chip duel-stat-chip--atk">
+                    <span class="duel-stat-chip-label">交戦力</span>
+                    <span
+                      id="self-attack-stock"
+                      class="attack-stock duel-stat-chip-num"
+                      >0</span
+                    >
+                  </span>
+                  <span class="duel-stat-chip">
+                    <span class="duel-stat-chip-label">HP</span>
+                    <span class="duel-stat-chip-num"
+                      ><span id="self-hp" class="duel-hp-num">100</span
+                      ><span class="duel-hp-max">/100</span></span
+                    >
+                  </span>
+                  <span class="duel-stat-chip" id="cost-bar">
+                    <span class="duel-stat-chip-label">コスト</span>
+                    <span class="duel-stat-chip-num duel-cost-nums"
+                      ><span id="cost-current">5</span> /
+                      <span id="cost-max">5</span></span
+                    >
+                  </span>
+                  <span id="self-lock-badge" class="lock-badge" hidden
+                    >確定済</span
+                  >
+                </div>
+                <div class="turn-banner" id="turn-banner">同時行動中</div>
+              </div>
+              <div class="duel-foot-right">
+                <details class="duel-help-details">
+                  <summary>ヘルプ（対戦カードは大が既定）</summary>
+                  <p>
+                    表示サイズは「カード: 大／標準」で切替できます。
+                    相手カードはクリック。自分の手札は
+                    <kbd>Ctrl</kbd>+クリック（Mac は <kbd>⌘</kbd>）で拡大。
+                    外側クリックまたは Esc で閉じます。
+                  </p>
+                </details>
+                <div class="game-actions">
+                  <button
+                    type="button"
+                    class="btn ghost"
+                    id="btn-duel-zoom-toggle"
+                  >
+                    カード: 大
+                  </button>
+                  <button type="button" class="btn primary" id="btn-end-turn">
+                    このラウンドを確定
+                  </button>
+                </div>
+              </div>
+            </footer>
           </div>
         </div>
       </section>
