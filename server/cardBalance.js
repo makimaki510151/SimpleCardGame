@@ -96,6 +96,16 @@ function cardHasFirstLockerResolve(card) {
   return (card.effects || []).some((e) => e.type === "attackIfFirstLockerResolve");
 }
 
+function cardHasVolatileDamageIf(card) {
+  return (card.effects || []).some(
+    (e) =>
+      e.type === "damageIf" &&
+      ["opponentHandLte", "opponentHpLte", "opponentLastCardIdIn"].includes(
+        e.mode
+      )
+  );
+}
+
 function assertNoStrictDominance(byId) {
   const ids = Object.keys(byId);
   const vecs = {};
@@ -111,6 +121,12 @@ function assertNoStrictDominance(byId) {
       if (
         cardHasFirstLockerResolve(byId[ida]) ||
         cardHasFirstLockerResolve(byId[idb])
+      ) {
+        continue;
+      }
+      if (
+        cardHasVolatileDamageIf(byId[ida]) ||
+        cardHasVolatileDamageIf(byId[idb])
       ) {
         continue;
       }

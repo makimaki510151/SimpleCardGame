@@ -142,6 +142,7 @@ export function createSkyWayP2P({
       firstLocker: null,
       log: [],
       _logSeq: 0,
+      lastPlayBySlot: [null, null],
     };
     Engine.startRound(game);
     emitGameBoth();
@@ -285,14 +286,18 @@ export function createSkyWayP2P({
           return;
         }
         lobby.guestDeck = msg.cardIds.slice();
-        lobby.guestReady = false;
         emitLobby();
+        tryStartGameHost();
         return;
       }
       if (msg.t === "setReady") {
         lobby.guestReady = !!msg.ready;
         emitLobby();
         tryStartGameHost();
+        return;
+      }
+      if (msg.t === "requestLobby") {
+        emitLobby();
         return;
       }
       if (msg.t === "playCard" || msg.t === "endTurn") {
@@ -335,6 +340,9 @@ export function createSkyWayP2P({
 
       room.onStreamPublished.add(async ({ publication }) => {
         await wireHostUplink(publication);
+        if (pubTag(publication) === "uplink") {
+          setTimeout(() => emitLobby(), 60);
+        }
       });
 
       for (const p of room.publications) {
@@ -364,6 +372,14 @@ export function createSkyWayP2P({
       room.onStreamPublished.add(async ({ publication }) => {
         await subscribeToStatePub(publication);
       });
+
+      const pingLobby = () => {
+        if (uplinkStream) {
+          uplinkStream.write(JSON.stringify({ t: "requestLobby" }));
+        }
+      };
+      queueMicrotask(pingLobby);
+      setTimeout(pingLobby, 400);
 
       room.onMemberLeft.add(({ member }) => {
         if (member.name === "scg-host") {

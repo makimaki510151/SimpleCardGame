@@ -4,7 +4,7 @@
   "cost": 3,
   "body": [
     { "t": "交戦力", "c": "muted" },
-    { "t": "4", "c": "damage" },
+    { "t": "5", "c": "damage" },
     { "t": "，カードドロー", "c": "muted" },
     { "t": "1", "c": "draw" },
     { "t": "，次ターン相手コスト上限", "c": "muted" },
@@ -13,14 +13,14 @@
     { "t": "相手の手札が ", "c": "muted" },
     { "t": "4", "c": "condition" },
     { "t": " 枚以上なら交戦力", "c": "muted" },
-    { "t": "8", "c": "damage" },
+    { "t": "10", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 4 },
+    { "type": "damage", "value": 5 },
     {
       "type": "damageIf",
-      "value": 8,
+      "value": 10,
       "mode": "opponentHandGte",
       "threshold": 4
     },

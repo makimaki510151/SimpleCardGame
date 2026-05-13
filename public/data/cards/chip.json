@@ -4,13 +4,13 @@
   "cost": 2,
   "body": [
     { "t": "交戦力", "c": "muted" },
-    { "t": "9", "c": "damage" },
+    { "t": "10", "c": "damage" },
     { "t": "，カードドロー", "c": "muted" },
     { "t": "1", "c": "draw" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 9 },
+    { "type": "damage", "value": 10 },
     { "type": "draw", "value": 1 }
   ]
 }

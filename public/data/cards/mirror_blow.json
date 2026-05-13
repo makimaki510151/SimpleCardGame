@@ -9,7 +9,7 @@
     { "t": "相手のHPが ", "c": "muted" },
     { "t": "25", "c": "condition" },
     { "t": " 以上なら交戦力", "c": "muted" },
-    { "t": "3", "c": "damage" },
+    { "t": "4", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
@@ -18,7 +18,7 @@
       "type": "damageIf",
       "mode": "opponentHpGte",
       "threshold": 25,
-      "value": 3
+      "value": 4
     }
   ]
 }

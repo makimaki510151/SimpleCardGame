@@ -123,6 +123,60 @@ body.scg-duel-view .topbar {
   margin: 2rem auto;
 }
 
+.result-panel {
+  max-width: 28rem;
+  margin: 1.5rem auto;
+  text-align: center;
+  border-width: 2px;
+}
+
+.result-panel--win {
+  border-color: rgba(63, 185, 80, 0.55);
+  box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.2), var(--shadow);
+}
+
+.result-panel--lose {
+  border-color: rgba(248, 81, 73, 0.45);
+  box-shadow: 0 0 0 1px rgba(248, 81, 73, 0.15), var(--shadow);
+}
+
+.result-hero {
+  font-size: clamp(2.4rem, 8vw, 3.6rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  margin: 0 0 0.35rem;
+}
+
+.result-panel--win .result-hero {
+  color: #3fb950;
+  text-shadow: 0 0 28px rgba(63, 185, 80, 0.45);
+}
+
+.result-panel--lose .result-hero {
+  color: #f85149;
+  text-shadow: 0 0 22px rgba(248, 81, 73, 0.35);
+}
+
+.result-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.45rem;
+}
+
+.result-detail {
+  margin: 0 0 0.65rem;
+  font-size: 1.05rem;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.result-msg {
+  margin: 0 0 1.25rem;
+  font-size: 0.92rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 h2 {
   margin: 0.5rem 0 1rem;
   font-size: 1.35rem;
@@ -410,9 +464,10 @@ h3 {
 }
 
 .seg-heal {
-  color: #56d364;
-  font-weight: 800;
-  text-shadow: 0 0 14px rgba(63, 185, 80, 0.35);
+  color: var(--heal);
+  font-weight: 650;
+  opacity: 0.9;
+  text-shadow: 0 0 10px rgba(63, 185, 80, 0.22);
 }
 
 .seg-draw {
@@ -707,11 +762,11 @@ h3 {
 }
 
 .duel-attack-num {
-  font-size: clamp(1.55rem, 4.2vw, 2.35rem);
+  font-size: clamp(1.85rem, 5vw, 2.85rem);
   line-height: 1;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 22px rgba(255, 184, 108, 0.38);
+  text-shadow: 0 0 26px rgba(255, 184, 108, 0.45);
 }
 
 .duel-id-block {
@@ -1045,6 +1100,10 @@ h3 {
   border: 1px solid var(--line);
   background: #0d1117;
   overflow: hidden;
+  max-height: min(32vh, 13rem);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .duel-log-head {
@@ -1064,9 +1123,12 @@ h3 {
   border-radius: 0;
   font-size: 0.78rem;
   overflow-y: auto;
+  overflow-x: hidden;
   line-height: 1.38;
   padding: 0.38rem 0.5rem;
   background: #0d1117;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .battle-log .log-row {
@@ -1184,7 +1246,7 @@ h3 {
 }
 
 .duel-stat-chip--atk .attack-stock {
-  font-size: 1.2rem;
+  font-size: 1.38rem;
   line-height: 1;
 }
 
@@ -1298,7 +1360,8 @@ h3 {
 
 .attack-stock {
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 1.05em;
   color: #ffb86c;
 }
 
@@ -1426,7 +1489,7 @@ h3 {
   }
 
   .duel-log-panel {
-    height: 100%;
+    max-height: min(34vh, 14rem);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -1434,7 +1497,7 @@ h3 {
 
   #screen-game .battle-log {
     flex: 1 1 auto;
-    max-height: none;
+    max-height: min(22vh, 9rem);
     min-height: 0;
   }
 }

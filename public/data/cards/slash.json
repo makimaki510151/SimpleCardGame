@@ -1,10 +1,10 @@
 {
   "id": "slash",
   "name": "斬り",
-  "cost": 3,
+  "cost": 4,
   "body": [
     { "t": "交戦力", "c": "muted" },
-    { "t": "12", "c": "damage" },
+    { "t": "14", "c": "damage" },
     { "t": "，自身回復", "c": "muted" },
     { "t": "1", "c": "heal" },
     { "t": "，カードドロー", "c": "muted" },
@@ -12,7 +12,7 @@
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 12 },
+    { "type": "damage", "value": 14 },
     { "type": "heal", "value": 1 },
     { "type": "draw", "value": 1 }
   ]

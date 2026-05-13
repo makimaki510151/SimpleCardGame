@@ -11,7 +11,7 @@
     { "t": "自分の手札が ", "c": "muted" },
     { "t": "4", "c": "condition" },
     { "t": " 枚以上なら交戦力", "c": "muted" },
-    { "t": "6", "c": "damage" },
+    { "t": "7", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
@@ -19,7 +19,7 @@
     { "type": "discardSelf", "value": 1 },
     {
       "type": "damageIf",
-      "value": 6,
+      "value": 7,
       "mode": "selfHandGte",
       "threshold": 4
     }

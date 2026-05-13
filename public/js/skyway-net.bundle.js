@@ -55646,6 +55646,15 @@ function evalCondition(game, actorIndex, cond) {
       return self2.hp <= (cond.threshold | 0);
     case "opponentHpGte":
       return opp.hp >= (cond.threshold | 0);
+    case "opponentHandLte":
+      return opp.hand.length <= (cond.threshold | 0);
+    case "opponentHpLte":
+      return opp.hp <= (cond.threshold | 0);
+    case "opponentLastCardIdIn": {
+      const ids = Array.isArray(cond.cardIds) ? cond.cardIds : [];
+      const last = (game.lastPlayBySlot || [])[1 - actorIndex];
+      return last != null && ids.includes(last);
+    }
     default:
       return false;
   }
@@ -55671,6 +55680,7 @@ function startRound(game) {
     p.hand.push(...drawn);
   }
   game.firstLocker = null;
+  game.lastPlayBySlot = [null, null];
   pushLog(
     game,
     null,
@@ -55733,7 +55743,7 @@ function applyCardEffects(game, actorIndex, cardDef, ctx = {}) {
       self2.hand.push(...drawn);
     } else if (e2.type === "discardSelf") {
       discardRandomFromHand(self2, e2.value | 0);
-    } else if (e2.type === "discardSelfChoose") {
+    } else if (e2.type === "discardSelfChoose" && !ctx.skipDiscardSelfChoose) {
       const n2 = e2.value | 0;
       for (let k = 0; k < n2; k++) {
         if (!choosePool || choosePool.length === 0) break;
@@ -55771,19 +55781,6 @@ function playCard(game, playerIndex, handIndex, cardById, opts = {}) {
   if (handIndex < 0 || handIndex >= p.hand.length) {
     return { ok: false, reason: "\u624B\u672D\u304C\u4E0D\u6B63\u3067\u3059\u3002" };
   }
-  if (p.negateIncomingPlays > 0) {
-    p.negateIncomingPlays -= 1;
-    const wouldId = p.hand[handIndex];
-    const wouldName = cardById[wouldId]?.name || wouldId;
-    pushLog(
-      game,
-      playerIndex,
-      `\u7121\u52B9\u5316 \u2014 ${wouldName} \u306F\u767A\u52D5\u3057\u306A\u304B\u3063\u305F\uFF08\u76F8\u624B\u306E\u59A8\u5BB3\uFF09`,
-      wouldId,
-      "negate"
-    );
-    return { ok: true, negated: true };
-  }
   const cardId = p.hand[handIndex];
   const def = cardById[cardId];
   if (!def) return { ok: false, reason: "\u30AB\u30FC\u30C9\u5B9A\u7FA9\u304C\u3042\u308A\u307E\u305B\u3093\u3002" };
@@ -55817,12 +55814,38 @@ function playCard(game, playerIndex, handIndex, cardById, opts = {}) {
   } else if (picks && picks.length > 0) {
     return { ok: false, reason: "\u3053\u306E\u30AB\u30FC\u30C9\u3067\u306F\u624B\u672D\u306E\u6307\u5B9A\u6368\u3066\u306F\u4E0D\u8981\u3067\u3059\u3002" };
   }
+  const choosePool = needChoose > 0 ? [...picks].sort((a, b) => b - a) : null;
+  const negated = (p.negateIncomingPlays | 0) > 0;
+  if (negated) {
+    p.negateIncomingPlays -= 1;
+  }
   p.costPool -= cost;
   p.hand.splice(handIndex, 1);
   p.discard.push(cardId);
-  const choosePool = needChoose > 0 ? [...picks].sort((a, b) => b - a) : null;
+  if (negated && needChoose > 0 && choosePool) {
+    for (let k = 0; k < needChoose; k++) {
+      if (!choosePool.length) break;
+      const ix = choosePool.shift();
+      if (ix < 0 || ix >= p.hand.length) break;
+      const rid = p.hand.splice(ix, 1)[0];
+      p.discard.push(rid);
+    }
+  }
+  if (!game.lastPlayBySlot) game.lastPlayBySlot = [null, null];
+  game.lastPlayBySlot[playerIndex] = cardId;
+  if (negated) {
+    pushLog(
+      game,
+      playerIndex,
+      `\u7121\u52B9\u5316 \u2014 ${def.name || cardId} \u306F\u52B9\u679C\u306E\u307F\u767A\u52D5\u305B\u305A\uFF08\u30B3\u30B9\u30C8${cost}\u30FB\u6368\u3066\u672D\u5316\uFF09`,
+      cardId,
+      "negate"
+    );
+    return { ok: true, negated: true };
+  }
   applyCardEffects(game, playerIndex, def, {
-    chooseDiscardPool: choosePool
+    chooseDiscardPool: choosePool,
+    skipDiscardSelfChoose: false
   });
   const effText = (def.effects || []).map(describeEffectLine).join(" / ");
   pushLog(
@@ -56070,7 +56093,8 @@ function createSkyWayP2P({
       roundNumber: 1,
       firstLocker: null,
       log: [],
-      _logSeq: 0
+      _logSeq: 0,
+      lastPlayBySlot: [null, null]
     };
     startRound(game);
     emitGameBoth();
@@ -56201,14 +56225,18 @@ function createSkyWayP2P({
           return;
         }
         lobby.guestDeck = msg.cardIds.slice();
-        lobby.guestReady = false;
         emitLobby();
+        tryStartGameHost();
         return;
       }
       if (msg.t === "setReady") {
         lobby.guestReady = !!msg.ready;
         emitLobby();
         tryStartGameHost();
+        return;
+      }
+      if (msg.t === "requestLobby") {
+        emitLobby();
         return;
       }
       if (msg.t === "playCard" || msg.t === "endTurn") {
@@ -56245,6 +56273,9 @@ function createSkyWayP2P({
       });
       room.onStreamPublished.add(async ({ publication }) => {
         await wireHostUplink(publication);
+        if (pubTag(publication) === "uplink") {
+          setTimeout(() => emitLobby(), 60);
+        }
       });
       for (const p of room.publications) {
         await wireHostUplink(p);
@@ -56270,6 +56301,13 @@ function createSkyWayP2P({
       room.onStreamPublished.add(async ({ publication }) => {
         await subscribeToStatePub(publication);
       });
+      const pingLobby = () => {
+        if (uplinkStream) {
+          uplinkStream.write(JSON.stringify({ t: "requestLobby" }));
+        }
+      };
+      queueMicrotask(pingLobby);
+      setTimeout(pingLobby, 400);
       room.onMemberLeft.add(({ member }) => {
         if (member.name === "scg-host") {
           onGameOver({ winnerSlot: guestSlot, reason: "disconnect" });

@@ -4,7 +4,7 @@
   "cost": 2,
   "body": [
     { "t": "交戦力", "c": "muted" },
-    { "t": "4", "c": "damage" },
+    { "t": "5", "c": "damage" },
     { "t": "，カードドロー", "c": "muted" },
     { "t": "1", "c": "draw" },
     { "t": "。", "c": "muted" },
@@ -15,7 +15,7 @@
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 4 },
+    { "type": "damage", "value": 5 },
     {
       "type": "damageIf",
       "mode": "selfHandGte",

@@ -1,0 +1,20 @@
+{
+  "id": "finishing_tag",
+  "name": "フィニッシュタグ",
+  "cost": 2,
+  "body": [
+    { "t": "相手のHPが ", "c": "muted" },
+    { "t": "15", "c": "condition" },
+    { "t": " 以下のとき交戦力", "c": "muted" },
+    { "t": "5", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    {
+      "type": "damageIf",
+      "mode": "opponentHpLte",
+      "threshold": 15,
+      "value": 5
+    }
+  ]
+}

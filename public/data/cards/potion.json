@@ -4,8 +4,8 @@
   "cost": 2,
   "body": [
     { "t": "自身回復", "c": "muted" },
-    { "t": "6", "c": "heal" },
+    { "t": "5", "c": "heal" },
     { "t": "。", "c": "muted" }
   ],
-  "effects": [{ "type": "heal", "value": 6 }]
+  "effects": [{ "type": "heal", "value": 5 }]
 }

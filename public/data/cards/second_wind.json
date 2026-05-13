@@ -4,13 +4,13 @@
   "cost": 3,
   "body": [
     { "t": "自身回復", "c": "muted" },
-    { "t": "8", "c": "heal" },
+    { "t": "6", "c": "heal" },
     { "t": "，カードドロー", "c": "muted" },
     { "t": "1", "c": "draw" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "heal", "value": 8 },
+    { "type": "heal", "value": 6 },
     { "type": "draw", "value": 1 }
   ]
 }

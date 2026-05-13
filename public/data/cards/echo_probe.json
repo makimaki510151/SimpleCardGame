@@ -1,0 +1,20 @@
+{
+  "id": "echo_probe",
+  "name": "エコープローブ",
+  "cost": 1,
+  "body": [
+    { "t": "相手が直前に使ったカードが ", "c": "muted" },
+    { "t": "針・チップ", "c": "condition" },
+    { "t": " のとき交戦力", "c": "muted" },
+    { "t": "4", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    {
+      "type": "damageIf",
+      "mode": "opponentLastCardIdIn",
+      "cardIds": ["needle", "chip"],
+      "value": 4
+    }
+  ]
+}

@@ -95,6 +95,15 @@ function evalCondition(game, actorIndex, cond) {
       return self.hp <= (cond.threshold | 0);
     case "opponentHpGte":
       return opp.hp >= (cond.threshold | 0);
+    case "opponentHandLte":
+      return opp.hand.length <= (cond.threshold | 0);
+    case "opponentHpLte":
+      return opp.hp <= (cond.threshold | 0);
+    case "opponentLastCardIdIn": {
+      const ids = Array.isArray(cond.cardIds) ? cond.cardIds : [];
+      const last = (game.lastPlayBySlot || [])[1 - actorIndex];
+      return last != null && ids.includes(last);
+    }
     default:
       return false;
   }
@@ -129,6 +138,7 @@ export function startRound(game) {
     p.hand.push(...drawn);
   }
   game.firstLocker = null;
+  game.lastPlayBySlot = [null, null];
   pushLog(
     game,
     null,
@@ -197,7 +207,7 @@ function applyCardEffects(game, actorIndex, cardDef, ctx = {}) {
       self.hand.push(...drawn);
     } else if (e.type === "discardSelf") {
       discardRandomFromHand(self, e.value | 0);
-    } else if (e.type === "discardSelfChoose") {
+    } else if (e.type === "discardSelfChoose" && !ctx.skipDiscardSelfChoose) {
       const n = e.value | 0;
       for (let k = 0; k < n; k++) {
         if (!choosePool || choosePool.length === 0) break;
@@ -241,20 +251,6 @@ export function playCard(game, playerIndex, handIndex, cardById, opts = {}) {
     return { ok: false, reason: "手札が不正です。" };
   }
 
-  if (p.negateIncomingPlays > 0) {
-    p.negateIncomingPlays -= 1;
-    const wouldId = p.hand[handIndex];
-    const wouldName = cardById[wouldId]?.name || wouldId;
-    pushLog(
-      game,
-      playerIndex,
-      `無効化 — ${wouldName} は発動しなかった（相手の妨害）`,
-      wouldId,
-      "negate"
-    );
-    return { ok: true, negated: true };
-  }
-
   const cardId = p.hand[handIndex];
   const def = cardById[cardId];
   if (!def) return { ok: false, reason: "カード定義がありません。" };
@@ -290,14 +286,45 @@ export function playCard(game, playerIndex, handIndex, cardById, opts = {}) {
     return { ok: false, reason: "このカードでは手札の指定捨ては不要です。" };
   }
 
+  const choosePool =
+    needChoose > 0 ? [...picks].sort((a, b) => b - a) : null;
+  const negated = (p.negateIncomingPlays | 0) > 0;
+
+  if (negated) {
+    p.negateIncomingPlays -= 1;
+  }
+
   p.costPool -= cost;
   p.hand.splice(handIndex, 1);
   p.discard.push(cardId);
 
-  const choosePool =
-    needChoose > 0 ? [...picks].sort((a, b) => b - a) : null;
+  if (negated && needChoose > 0 && choosePool) {
+    for (let k = 0; k < needChoose; k++) {
+      if (!choosePool.length) break;
+      const ix = choosePool.shift();
+      if (ix < 0 || ix >= p.hand.length) break;
+      const rid = p.hand.splice(ix, 1)[0];
+      p.discard.push(rid);
+    }
+  }
+
+  if (!game.lastPlayBySlot) game.lastPlayBySlot = [null, null];
+  game.lastPlayBySlot[playerIndex] = cardId;
+
+  if (negated) {
+    pushLog(
+      game,
+      playerIndex,
+      `無効化 — ${def.name || cardId} は効果のみ発動せず（コスト${cost}・捨て札化）`,
+      cardId,
+      "negate"
+    );
+    return { ok: true, negated: true };
+  }
+
   applyCardEffects(game, playerIndex, def, {
     chooseDiscardPool: choosePool,
+    skipDiscardSelfChoose: false,
   });
 
   const effText = (def.effects || []).map(describeEffectLine).join(" / ");

@@ -380,6 +380,10 @@ function onSkyWayLobby(msg) {
     lobbyCatalogLoaded = true;
   }
   renderLobbyPlayers(msg.players || []);
+  const slot = skywaySession?.role === "host" ? 0 : 1;
+  const chk = $("#chk-ready");
+  const pl = msg.players?.[slot];
+  if (chk && pl) chk.checked = !!pl.ready;
   if (
     skywaySession?._autoDeckOnce &&
     Array.isArray(msg.catalog?.cards) &&
@@ -740,15 +744,30 @@ function onGameOver(payload) {
   duelPrevSelfHp = null;
   duelPrevOppHp = null;
   const youWin = payload.winnerSlot === lastGameYouAre;
+  const disconnect = payload.reason === "disconnect";
   showScreen("screen-result");
-  $("#result-title").textContent = youWin ? "勝利！" : "敗北…";
-  let msg = youWin ? "相手のHPを0にしました。" : "あなたのHPが0になりました。";
-  if (payload.reason === "disconnect") {
-    msg = youWin
-      ? "相手が切断したため勝利しました。"
-      : "切断により対戦が終了しました。";
+  const panel = $("#result-panel");
+  if (panel) {
+    panel.classList.remove("result-panel--win", "result-panel--lose");
+    panel.classList.add(youWin ? "result-panel--win" : "result-panel--lose");
   }
-  $("#result-msg").textContent = msg;
+  const hero = $("#result-hero");
+  if (hero) {
+    hero.textContent = youWin ? "勝利" : "敗北";
+  }
+  $("#result-title").textContent = youWin ? "あなたの勝ち" : "あなたの負け";
+  let detail = youWin
+    ? "相手のHPを0にし、デュエルを制しました。"
+    : "あなたのHPが0になり、デュエルは続行できません。";
+  if (disconnect) {
+    detail = youWin
+      ? "相手が切断したため、こちらの不戦勝となりました。"
+      : "ホストとの接続が切れました。結果は記録されません。";
+  }
+  $("#result-detail").textContent = detail;
+  $("#result-msg").textContent = youWin
+    ? "お疲れさまでした。タイトルに戻って次の対戦を準備できます。"
+    : "タイトルに戻り、デッキや立ち回りを見直してみましょう。";
 }
 
 async function fetchCatalog() {
