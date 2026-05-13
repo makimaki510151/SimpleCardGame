@@ -77,6 +77,10 @@
             コード: <span id="lobby-code" class="mono">------</span>
           </p>
           <ul id="lobby-players" class="lobby-list"></ul>
+          <div class="lobby-deck-row">
+            <label for="select-lobby-deck">送信するデッキ</label>
+            <select id="select-lobby-deck" class="select-input"></select>
+          </div>
           <div class="lobby-actions stack">
             <button type="button" class="btn" id="btn-use-saved-deck">
               保存デッキを送る
@@ -90,7 +94,7 @@
             </label>
           </div>
           <p class="hint">
-            デッキは20枚・同一カード3枚まで。デッキ構築画面で編集して保存してください。
+            リストでデッキを選び「保存デッキを送る」で送信（初期は「初期デッキ」）。デッキ構築では複数保存できます（最大16）。
           </p>
         </div>
       </section>
@@ -100,6 +104,29 @@
         <div class="panel deck-panel">
           <button type="button" class="btn back" data-back="title">← 戻る</button>
           <h2>デッキ構築</h2>
+          <div class="deck-toolbar">
+            <label>
+              編集中のデッキ
+              <select id="deck-editor-select"></select>
+            </label>
+            <label>
+              名前
+              <input
+                type="text"
+                id="deck-name-input"
+                class="input deck-name"
+                maxlength="24"
+                placeholder="デッキ名"
+                autocomplete="off"
+              />
+            </label>
+            <button type="button" class="btn ghost" id="btn-deck-new">
+              新規
+            </button>
+            <button type="button" class="btn ghost" id="btn-deck-delete">
+              削除
+            </button>
+          </div>
           <p class="deck-meta">
             <span id="deck-count">0</span> / 20 枚
             <span id="deck-status" class="deck-status"></span>

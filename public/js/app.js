@@ -1,6 +1,10 @@
 const COST_MARK = ["", "①", "②", "③", "④", "⑤"];
 
-const LS_DECK = "scg_deck_v1";
+const LS_DECK_LEGACY = "scg_deck_v1";
+const LS_DECKS = "scg_decks_v1";
+const LS_EDITOR_DECK = "scg_editor_deck_id";
+const LS_LOBBY_DECK = "scg_lobby_deck_id";
+const MAX_SAVED_DECKS = 16;
 
 let catalogById = {};
 let initialDeckIds = [];
@@ -137,20 +141,126 @@ function makeCardFace(card, { wide } = {}) {
   return root;
 }
 
-function loadSavedDeck() {
+function newDeckId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `d_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function loadDecksListRaw() {
   try {
-    const raw = localStorage.getItem(LS_DECK);
-    if (!raw) return null;
+    const raw = localStorage.getItem(LS_DECKS);
+    if (!raw) return [];
     const arr = JSON.parse(raw);
-    if (Array.isArray(arr) && arr.length === 20) return arr;
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDecksListRaw(decks) {
+  localStorage.setItem(LS_DECKS, JSON.stringify(decks));
+}
+
+function migrateLegacyDeckIfNeeded() {
+  if (loadDecksListRaw().length > 0) return;
+  try {
+    const raw = localStorage.getItem(LS_DECK_LEGACY);
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr) && arr.length === 20) {
+      const id = newDeckId();
+      saveDecksListRaw([{ id, name: "デッキ1", cardIds: arr }]);
+      localStorage.setItem(LS_EDITOR_DECK, id);
+      localStorage.removeItem(LS_DECK_LEGACY);
+    }
   } catch {
     /* ignore */
   }
-  return null;
 }
 
-function saveDeck(ids) {
-  localStorage.setItem(LS_DECK, JSON.stringify(ids));
+function loadDecksList() {
+  migrateLegacyDeckIfNeeded();
+  let decks = loadDecksListRaw();
+  if (decks.length === 0 && initialDeckIds.length === 20) {
+    const id = newDeckId();
+    decks = [{ id, name: "初期コピー", cardIds: initialDeckIds.slice() }];
+    saveDecksListRaw(decks);
+    localStorage.setItem(LS_EDITOR_DECK, id);
+  }
+  return decks;
+}
+
+function getEditorDeckId() {
+  const decks = loadDecksList();
+  const id = localStorage.getItem(LS_EDITOR_DECK);
+  if (id && decks.some((d) => d.id === id)) return id;
+  return decks[0]?.id || "";
+}
+
+function setEditorDeckId(id) {
+  if (id) localStorage.setItem(LS_EDITOR_DECK, id);
+}
+
+function fillDeckEditorSelect() {
+  const sel = document.getElementById("deck-editor-select");
+  if (!sel) return;
+  const cur = getEditorDeckId();
+  sel.textContent = "";
+  for (const d of loadDecksList()) {
+    const op = document.createElement("option");
+    op.value = d.id;
+    op.textContent = d.name;
+    sel.appendChild(op);
+  }
+  if (cur && [...sel.options].some((o) => o.value === cur)) {
+    sel.value = cur;
+  } else if (sel.options[0]) {
+    sel.value = sel.options[0].value;
+    setEditorDeckId(sel.value);
+  }
+}
+
+function fillLobbyDeckSelect() {
+  const sel = document.getElementById("select-lobby-deck");
+  if (!sel) return;
+  sel.textContent = "";
+  const optInit = document.createElement("option");
+  optInit.value = "__initial__";
+  optInit.textContent = "初期デッキ";
+  sel.appendChild(optInit);
+  for (const d of loadDecksList()) {
+    const op = document.createElement("option");
+    op.value = d.id;
+    op.textContent = d.name;
+    sel.appendChild(op);
+  }
+  const saved = localStorage.getItem(LS_LOBBY_DECK);
+  if (saved && [...sel.options].some((o) => o.value === saved)) {
+    sel.value = saved;
+  } else {
+    const first = loadDecksList()[0]?.id;
+    sel.value = first || "__initial__";
+  }
+}
+
+function lobbyChosenDeckIds() {
+  const sel = document.getElementById("select-lobby-deck");
+  const v = sel?.value;
+  if (v === "__initial__") {
+    return initialDeckIds.length === 20 ? initialDeckIds.slice() : null;
+  }
+  const d = loadDecksList().find((x) => x.id === v);
+  if (!d?.cardIds || d.cardIds.length !== 20) return null;
+  return d.cardIds.slice();
+}
+
+/** 互換: 先頭の保存デッキの cardIds */
+function loadSavedDeck() {
+  const d = loadDecksList()[0];
+  if (d?.cardIds?.length === 20) return d.cardIds.slice();
+  return null;
 }
 
 function validateDeckClient(ids) {
@@ -208,8 +318,16 @@ function renderLobbyPlayers(players) {
 }
 
 function autoSendDeckIfPossible() {
-  const saved = loadSavedDeck();
-  const ids = saved?.length === 20 ? saved : initialDeckIds;
+  let ids = lobbyChosenDeckIds();
+  if (!ids || ids.length !== 20) {
+    const saved = loadSavedDeck();
+    ids =
+      saved?.length === 20
+        ? saved
+        : initialDeckIds.length === 20
+          ? initialDeckIds.slice()
+          : null;
+  }
   if (ids?.length === 20) {
     const v = validateDeckClient(ids);
     if (v.ok) {
@@ -405,7 +523,7 @@ function wireUi() {
         tokenUrl,
         roomName,
         role: "host",
-        cardById,
+        cardById: catalogById,
         initialDeckIds,
         onLobby: onSkyWayLobby,
         onGameState,
@@ -416,6 +534,7 @@ function wireUi() {
       showScreen("screen-lobby");
       $("#lobby-code").textContent = code;
       $("#chk-ready").checked = false;
+      fillLobbyDeckSelect();
       autoSendDeckIfPossible();
     } catch (e) {
       console.error(e);
@@ -445,7 +564,7 @@ function wireUi() {
         tokenUrl,
         roomName,
         role: "guest",
-        cardById,
+        cardById: catalogById,
         initialDeckIds,
         onLobby: onSkyWayLobby,
         onGameState,
@@ -456,6 +575,7 @@ function wireUi() {
       showScreen("screen-lobby");
       $("#lobby-code").textContent = code;
       $("#chk-ready").checked = false;
+      fillLobbyDeckSelect();
       skywaySession._autoDeckOnce = true;
     } catch (e) {
       console.error(e);
@@ -470,18 +590,27 @@ function wireUi() {
   });
 
   $("#btn-use-saved-deck").addEventListener("click", () => {
-    const saved = loadSavedDeck();
-    if (!saved) {
+    const sel = $("#select-lobby-deck");
+    if (sel?.value === "__initial__") {
+      toast("上のリストから保存デッキを選んでください");
+      return;
+    }
+    const ids = lobbyChosenDeckIds();
+    if (!ids) {
       toast("保存されたデッキがありません");
       return;
     }
-    const v = validateDeckClient(saved);
+    const v = validateDeckClient(ids);
     if (!v.ok) {
       toast(v.reason);
       return;
     }
-    sendDeckToServer(saved);
+    sendDeckToServer(ids);
     toast("保存デッキを送信しました");
+  });
+
+  $("#select-lobby-deck")?.addEventListener("change", (e) => {
+    localStorage.setItem(LS_LOBBY_DECK, e.target.value);
   });
 
   $("#btn-use-initial-deck").addEventListener("click", () => {
@@ -517,10 +646,85 @@ function wireUi() {
       toast(v.reason);
       return;
     }
-    saveDeck(currentDeck.slice());
+    const id = getEditorDeckId();
+    const inp = $("#deck-name-input");
+    const nameRaw = (inp?.value || "").trim();
+    const name = nameRaw.length ? nameRaw.slice(0, 24) : "無題デッキ";
+    const decks = loadDecksList();
+    const idx = decks.findIndex((d) => d.id === id);
+    if (idx < 0) {
+      toast("デッキが見つかりません");
+      return;
+    }
+    decks[idx] = { ...decks[idx], name, cardIds: currentDeck.slice() };
+    saveDecksListRaw(decks);
+    fillDeckEditorSelect();
+    syncDeckNameInput();
     toast("デッキを保存しました");
     renderDeckBuilder();
   });
+
+  $("#deck-editor-select")?.addEventListener("change", (e) => {
+    setEditorDeckId(e.target.value);
+    syncDeckNameInput();
+    const d = loadDecksList().find((x) => x.id === e.target.value);
+    currentDeck =
+      d?.cardIds?.length === 20
+        ? d.cardIds.slice()
+        : initialDeckIds.length === 20
+          ? initialDeckIds.slice()
+          : [];
+    renderDeckBuilder();
+  });
+
+  $("#btn-deck-new")?.addEventListener("click", () => {
+    const decks = loadDecksList();
+    if (decks.length >= MAX_SAVED_DECKS) {
+      toast(`保存は${MAX_SAVED_DECKS}個までです`);
+      return;
+    }
+    const id = newDeckId();
+    const base =
+      initialDeckIds.length === 20 ? initialDeckIds.slice() : [];
+    decks.push({ id, name: `新規デッキ${decks.length + 1}`, cardIds: base });
+    saveDecksListRaw(decks);
+    setEditorDeckId(id);
+    fillDeckEditorSelect();
+    syncDeckNameInput();
+    currentDeck = base.slice();
+    renderDeckBuilder();
+    toast("新規デッキを作成しました");
+  });
+
+  $("#btn-deck-delete")?.addEventListener("click", () => {
+    const decks = loadDecksList();
+    if (decks.length <= 1) {
+      toast("最後の1つは削除できません");
+      return;
+    }
+    const id = getEditorDeckId();
+    const next = decks.filter((d) => d.id !== id);
+    saveDecksListRaw(next);
+    setEditorDeckId(next[0].id);
+    fillDeckEditorSelect();
+    syncDeckNameInput();
+    const d = next[0];
+    currentDeck =
+      d?.cardIds?.length === 20
+        ? d.cardIds.slice()
+        : initialDeckIds.length === 20
+          ? initialDeckIds.slice()
+          : [];
+    renderDeckBuilder();
+  });
+}
+
+function syncDeckNameInput() {
+  const inp = $("#deck-name-input");
+  if (!inp) return;
+  const id = getEditorDeckId();
+  const d = loadDecksList().find((x) => x.id === id);
+  inp.value = d?.name || "";
 }
 
 async function openDeckBuilder() {
@@ -532,10 +736,14 @@ async function openDeckBuilder() {
       return;
     }
   }
-  const saved = loadSavedDeck();
+  loadDecksList();
+  fillDeckEditorSelect();
+  syncDeckNameInput();
+  const id = getEditorDeckId();
+  const d = loadDecksList().find((x) => x.id === id);
   currentDeck =
-    saved && saved.length === 20
-      ? saved.slice()
+    d?.cardIds?.length === 20
+      ? d.cardIds.slice()
       : initialDeckIds.length === 20
         ? initialDeckIds.slice()
         : [];
