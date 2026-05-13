@@ -124,11 +124,9 @@ function renderCardBody(container, card) {
   }
 }
 
-function makeCardFace(card, { wide, mini } = {}) {
+function makeCardFace(card, { wide } = {}) {
   const root = document.createElement("div");
-  if (wide) root.className = "card-face wide";
-  else if (mini) root.className = "card-face mini";
-  else root.className = "card-face";
+  root.className = wide ? "card-face wide" : "card-face";
   const cost = document.createElement("div");
   cost.className = "card-cost";
   const c = Math.min(5, Math.max(0, card.cost | 0));
@@ -437,7 +435,7 @@ function onGameState(state) {
     oppStrip.textContent = "";
     const oh = state.opponent.hand || [];
     for (const c of oh) {
-      oppStrip.appendChild(makeCardFace(c, { mini: true }));
+      oppStrip.appendChild(makeCardFace(c));
     }
   }
 

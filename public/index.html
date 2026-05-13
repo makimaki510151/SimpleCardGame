@@ -147,53 +147,105 @@
         </div>
       </section>
 
-      <!-- 対戦 -->
+      <!-- 対戦（TCG風：相手エリア → ログ → 自分エリア） -->
       <section id="screen-game" class="screen">
-        <div class="game-layout">
-          <div class="hud opponent">
-            <div class="hud-row">
-              <span>相手</span>
-              <span class="hp"
-                ><span id="opp-hp">100</span> / 100 HP</span
-              >
+        <div class="duel-field">
+          <div class="duel-opp-field">
+            <header class="duel-field-head duel-field-head--opp">
+              <div class="duel-id-block">
+                <span class="duel-player-name">相手</span>
+                <span class="duel-hp-line"
+                  >HP <span id="opp-hp" class="duel-hp-num">100</span
+                  ><span class="duel-hp-max">/100</span></span
+                >
+                <span id="opp-lock-badge" class="lock-badge" hidden>確定済</span>
+              </div>
+              <div class="duel-attack-block" aria-label="相手の交戦力">
+                <span class="duel-attack-label">交戦力</span>
+                <span id="opp-attack-stock" class="attack-stock duel-attack-num"
+                  >0</span
+                >
+              </div>
+            </header>
+            <div class="duel-zone-row" aria-label="相手の山札・捨て札・手札枚数">
+              <div class="pile pile--deck" title="山札">
+                <span class="pile-name">山札</span>
+                <span id="opp-deck" class="pile-num">0</span>
+              </div>
+              <div class="pile pile--discard" title="捨て札">
+                <span class="pile-name">捨て</span>
+                <span id="opp-disc" class="pile-num">0</span>
+              </div>
+              <div class="pile pile--hand" title="手札枚数">
+                <span class="pile-name">手札</span>
+                <span id="opp-hand" class="pile-num">0</span>
+              </div>
             </div>
-            <div class="hud-sub">
-              交戦力 <span id="opp-attack-stock" class="attack-stock">0</span>
-              ・手札 <span id="opp-hand">0</span> ・山
-              <span id="opp-deck">0</span> ・捨て
-              <span id="opp-disc">0</span>
-              <span id="opp-lock-badge" class="lock-badge" hidden>確定済</span>
+            <div class="duel-hand-lane">
+              <span class="duel-hand-lane-label">相手の手札</span>
+              <div
+                id="opp-hand-cards"
+                class="duel-hand-strip"
+                aria-label="相手の手札"
+              ></div>
             </div>
-            <div id="opp-hand-cards" class="opp-hand-strip" aria-label="相手の手札"></div>
           </div>
 
-          <div id="battle-log" class="battle-log" aria-live="polite"></div>
-
-          <div class="hud self">
-            <div class="hud-row">
-              <span>あなた</span>
-              <span class="hp"><span id="self-hp">100</span> / 100 HP</span>
+          <div class="duel-center">
+            <div class="duel-log-panel">
+              <div class="duel-log-head">バトルログ</div>
+              <div id="battle-log" class="battle-log" aria-live="polite"></div>
             </div>
-            <div class="hud-sub">
-              交戦力 <span id="self-attack-stock" class="attack-stock">0</span>
-              ・山 <span id="self-deck">0</span> ・捨て
-              <span id="self-disc">0</span>
-              ・ラウンド <span id="turn-no">1</span>
-              <span id="self-lock-badge" class="lock-badge" hidden>確定済</span>
-            </div>
-            <div class="cost-bar" id="cost-bar">
-              コスト: <span id="cost-current">5</span> /
-              <span id="cost-max">5</span>
-            </div>
-            <div class="turn-banner" id="turn-banner">同時行動中</div>
           </div>
 
-          <div id="hand" class="hand"></div>
-
-          <div class="game-actions">
-            <button type="button" class="btn primary" id="btn-end-turn">
-              このラウンドを確定
-            </button>
+          <div class="duel-self-field">
+            <div class="duel-zone-row duel-zone-row--self" aria-label="あなたの山札・捨て札">
+              <div class="pile pile--deck" title="山札">
+                <span class="pile-name">山札</span>
+                <span id="self-deck" class="pile-num">0</span>
+              </div>
+              <div class="pile pile--discard" title="捨て札">
+                <span class="pile-name">捨て</span>
+                <span id="self-disc" class="pile-num">0</span>
+              </div>
+              <div class="pile pile--meta" title="ラウンド">
+                <span class="pile-name">ラウンド</span>
+                <span id="turn-no" class="pile-num">1</span>
+              </div>
+            </div>
+            <div class="duel-hand-lane duel-hand-lane--self">
+              <span class="duel-hand-lane-label">あなたの手札</span>
+              <div id="hand" class="hand duel-hand-self"></div>
+            </div>
+            <footer class="duel-field-foot">
+              <div class="duel-attack-block duel-attack-block--self" aria-label="あなたの交戦力">
+                <span class="duel-attack-label">交戦力</span>
+                <span id="self-attack-stock" class="attack-stock duel-attack-num"
+                  >0</span
+                >
+              </div>
+              <div class="duel-id-block">
+                <span class="duel-player-name">あなた</span>
+                <span class="duel-hp-line"
+                  >HP <span id="self-hp" class="duel-hp-num">100</span
+                  ><span class="duel-hp-max">/100</span></span
+                >
+                <span id="self-lock-badge" class="lock-badge" hidden>確定済</span>
+              </div>
+              <div class="duel-cost-line" id="cost-bar">
+                コスト
+                <span class="duel-cost-nums"
+                  ><span id="cost-current">5</span> /
+                  <span id="cost-max">5</span></span
+                >
+              </div>
+              <div class="turn-banner" id="turn-banner">同時行動中</div>
+              <div class="game-actions">
+                <button type="button" class="btn primary" id="btn-end-turn">
+                  このラウンドを確定
+                </button>
+              </div>
+            </footer>
           </div>
         </div>
       </section>
