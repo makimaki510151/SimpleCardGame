@@ -36,7 +36,7 @@
     <main class="shell">
       <header class="topbar">
         <h1 class="logo">Simple Card</h1>
-        <p class="tagline">同時行動・交戦力・20枚デッキ・100HP</p>
+        <p class="tagline">同時行動・交戦力・20枚デッキ・50HP</p>
       </header>
 
       <!-- タイトル -->
@@ -175,8 +175,8 @@
               <div class="duel-id-block">
                 <span class="duel-player-name">相手</span>
                 <span class="duel-hp-line"
-                  >HP <span id="opp-hp" class="duel-hp-num">100</span
-                  ><span class="duel-hp-max">/100</span></span
+                  >HP <span id="opp-hp" class="duel-hp-num">50</span
+                  ><span class="duel-hp-max">/50</span></span
                 >
                 <span id="opp-lock-badge" class="lock-badge" hidden>確定済</span>
               </div>
@@ -239,9 +239,17 @@
                   <span class="pile-name">捨て</span>
                   <span id="self-disc" class="pile-num">0</span>
                 </div>
-                <div class="pile pile--hand" title="手札枚数">
+                <div class="pile pile--hand" title="手札枚数とコスト">
                   <span class="pile-name">手札</span>
                   <span id="self-hand" class="pile-num">0</span>
+                  <div class="duel-pile-cost-row" id="cost-bar-pile">
+                    <span class="duel-pile-cost-label">コスト</span>
+                    <div class="duel-pile-cost-values" aria-live="polite">
+                      <span id="cost-current-pile">5</span>
+                      <span class="duel-pile-cost-sep">/</span>
+                      <span id="cost-max-pile">5</span>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="duel-hand-mat" aria-label="あなたの手札">
@@ -272,8 +280,8 @@
                   <span class="duel-stat-chip">
                     <span class="duel-stat-chip-label">HP</span>
                     <span class="duel-stat-chip-num"
-                      ><span id="self-hp" class="duel-hp-num">100</span
-                      ><span class="duel-hp-max">/100</span></span
+                      ><span id="self-hp" class="duel-hp-num">50</span
+                      ><span class="duel-hp-max">/50</span></span
                     >
                   </span>
                   <span class="duel-stat-chip" id="cost-bar">

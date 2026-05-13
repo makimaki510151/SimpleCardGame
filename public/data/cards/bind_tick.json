@@ -4,8 +4,13 @@
   "cost": 0,
   "body": [
     { "t": "次ラウンド、相手のコスト上限を ", "c": "muted" },
-    { "t": "4", "c": "cap" },
-    { "t": " に。", "c": "muted" }
+    { "t": "3", "c": "cap" },
+    { "t": " に。自分の手札を ", "c": "muted" },
+    { "t": "1", "c": "discard" },
+    { "t": " 枚ランダムで捨てる。", "c": "muted" }
   ],
-  "effects": [{ "type": "capOpponentNextTurn", "cap": 4 }]
+  "effects": [
+    { "type": "capOpponentNextTurn", "cap": 3 },
+    { "type": "discardSelf", "value": 1 }
+  ]
 }

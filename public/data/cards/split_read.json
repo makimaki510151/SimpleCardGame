@@ -1,22 +1,22 @@
 {
   "id": "split_read",
   "name": "スプリットリード",
-  "cost": 2,
+  "cost": 5,
   "body": [
     { "t": "交戦力 ", "c": "muted" },
-    { "t": "4", "c": "damage" },
+    { "t": "6", "c": "damage" },
     { "t": "。相手のHPが ", "c": "muted" },
-    { "t": "60", "c": "condition" },
+    { "t": "30", "c": "condition" },
     { "t": " 以上ならさらに ", "c": "muted" },
     { "t": "6", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 4 },
+    { "type": "damage", "value": 6 },
     {
       "type": "damageIf",
       "mode": "opponentHpGte",
-      "threshold": 60,
+      "threshold": 30,
       "value": 6
     }
   ]

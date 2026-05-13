@@ -14,6 +14,10 @@ let lastGameYouAre = 0;
 let lobbyCatalogLoaded = false;
 
 let skywaySession = null;
+/** 直近の対戦スナップショット（選択捨てキャンセル時の再描画用） */
+let lastDuelGameState = null;
+/** 選択捨て待ち: { playIndex, need, picks } */
+let pendingChooseDiscard = null;
 
 function assetBase() {
   const baseHref = document.querySelector("base")?.href;
@@ -64,12 +68,30 @@ async function disposeSkyWay() {
   skywaySession = null;
 }
 
-function playCardAction(handIndex) {
+function sumDiscardSelfChoose(effects) {
+  let n = 0;
+  for (const e of effects || []) {
+    if (e.type === "discardSelfChoose") n += e.value | 0;
+  }
+  return n;
+}
+
+function discardChooseCountFromCard(card) {
+  const eff = catalogById[card?.id]?.effects;
+  return sumDiscardSelfChoose(eff);
+}
+
+function postPlayIndexForDiscardPick(clickedIndex, playIndex) {
+  if (clickedIndex === playIndex) return null;
+  return clickedIndex < playIndex ? clickedIndex : clickedIndex - 1;
+}
+
+function playCardAction(handIndex, discardPicks) {
   if (!skywaySession) {
     toast("接続がありません");
     return;
   }
-  skywaySession.playCard(handIndex);
+  skywaySession.playCard(handIndex, discardPicks);
 }
 
 function endTurnAction() {
@@ -428,6 +450,10 @@ function onGameState(state) {
   lastGameYouAre = state.youAre;
   $("#opp-hp").textContent = String(state.opponent.hp);
   $("#self-hp").textContent = String(state.you.hp);
+  const maxHp = state.you.maxHp ?? state.opponent.maxHp ?? 50;
+  document.querySelectorAll(".duel-hp-max").forEach((el) => {
+    el.textContent = `/${maxHp}`;
+  });
   $("#opp-hand").textContent = String(
     state.opponent.handCount ?? state.opponent.hand?.length ?? 0
   );
@@ -448,6 +474,13 @@ function onGameState(state) {
 
   const oa = $("#opp-attack-stock");
   const sa = $("#self-attack-stock");
+  const pendAtk = state.you.pendingFirstLockAttack | 0;
+  if (sa) {
+    sa.title =
+      pendAtk > 0
+        ? `交戦解決時、先に確定していればさらに +${pendAtk}（遅延効果）`
+        : "";
+  }
   if ((state.opponent.attackStock | 0) > lastOppAttack) {
     oa.classList.add("pulse");
     clearTimeout(oa._ptm);
@@ -465,9 +498,19 @@ function onGameState(state) {
   $("#cost-max").textContent = String(
     state.you.maxCost ?? state.you.costPool
   );
+  const costCurPile = $("#cost-current-pile");
+  const costMaxPile = $("#cost-max-pile");
+  if (costCurPile) costCurPile.textContent = String(state.you.costPool);
+  if (costMaxPile) {
+    costMaxPile.textContent = String(
+      state.you.maxCost ?? state.you.costPool
+    );
+  }
 
   const myLock = !!state.you.roundLocked;
   const opLock = !!state.opponent.roundLocked;
+  if (myLock) pendingChooseDiscard = null;
+
   const badgeSelf = $("#self-lock-badge");
   const badgeOpp = $("#opp-lock-badge");
   if (badgeSelf) {
@@ -488,6 +531,7 @@ function onGameState(state) {
   banner.classList.toggle("wait", myLock);
 
   $("#cost-bar").classList.toggle("wait", myLock);
+  $("#cost-bar-pile")?.classList.toggle("wait", myLock);
 
   const oppStrip = $("#opp-hand-cards");
   if (oppStrip) {
@@ -513,12 +557,31 @@ function onGameState(state) {
   state.you.hand.forEach((card, idx) => {
     const el = makeCardFace(card);
     el.dataset.index = String(idx);
+    const pend = pendingChooseDiscard;
     const affordable = canPlay && (card.cost | 0) <= state.you.costPool;
-    if (!affordable) el.classList.add("disabled");
-    el.title =
-      canPlay && affordable
-        ? "クリックで使用 · Ctrl+クリックで拡大（Mac は ⌘）"
-        : "Ctrl+クリックで拡大（Mac は ⌘）";
+    const chooseNeed = discardChooseCountFromCard(card);
+
+    if (!pend && !affordable) el.classList.add("disabled");
+    if (pend) {
+      if (idx === pend.playIndex) el.classList.add("card-pending-source");
+      else if (canPlay) el.classList.add("card-pending-pick");
+    }
+
+    if (pend && idx === pend.playIndex) {
+      el.title = "クリックでキャンセル · Ctrl+クリックで拡大（Mac は ⌘）";
+    } else if (pend && idx !== pend.playIndex) {
+      el.title =
+        "クリックで捨て札として選ぶ · Ctrl+クリックで拡大（Mac は ⌘）";
+    } else if (canPlay && affordable) {
+      const hint =
+        chooseNeed > 0
+          ? "（使用時に手札を選んで捨てます）"
+          : "";
+      el.title = `クリックで使用${hint} · Ctrl+クリックで拡大（Mac は ⌘）`;
+    } else {
+      el.title = "Ctrl+クリックで拡大（Mac は ⌘）";
+    }
+
     el.addEventListener("click", (ev) => {
       if (ev.ctrlKey || ev.metaKey) {
         ev.preventDefault();
@@ -526,9 +589,58 @@ function onGameState(state) {
         openCardZoomPreview(card.id);
         return;
       }
-      if (canPlay && affordable) {
-        playCardAction(idx);
+      if (!canPlay) return;
+
+      const p2 = pendingChooseDiscard;
+      if (p2) {
+        if (idx === p2.playIndex) {
+          pendingChooseDiscard = null;
+          toast("選択をキャンセルしました");
+          onGameState(state);
+          return;
+        }
+        const post = postPlayIndexForDiscardPick(idx, p2.playIndex);
+        if (post === null) {
+          toast("使用するカード以外を選んでください");
+          return;
+        }
+        p2.picks.push(post);
+        if (new Set(p2.picks).size !== p2.picks.length) {
+          p2.picks.pop();
+          toast("同じ手札位置は2回選べません");
+          return;
+        }
+        if (p2.picks.length < p2.need) {
+          toast(`あと ${p2.need - p2.picks.length} 枚、捨てるカードを選んでください`);
+          onGameState(state);
+          return;
+        }
+        const playIx = p2.playIndex;
+        const picks = p2.picks.slice();
+        pendingChooseDiscard = null;
+        playCardAction(playIx, picks);
+        return;
       }
+
+      if (!affordable) return;
+
+      if (chooseNeed > 0) {
+        if (state.you.hand.length - 1 < chooseNeed) {
+          toast("選んで捨てるには手札が足りません");
+          return;
+        }
+        pendingChooseDiscard = {
+          playIndex: idx,
+          need: chooseNeed,
+          picks: [],
+        };
+        toast(
+          `このカードを使うには、手札から${chooseNeed}枚選んで捨ててください`
+        );
+        onGameState(state);
+        return;
+      }
+      playCardAction(idx);
     });
     hand.appendChild(el);
   });
@@ -536,10 +648,13 @@ function onGameState(state) {
   const btn = $("#btn-end-turn");
   btn.disabled = myLock;
   btn.textContent = myLock ? "確定済み" : "このラウンドを確定";
+
+  lastDuelGameState = state;
 }
 
 function onGameOver(payload) {
   closeCardZoomPreview();
+  pendingChooseDiscard = null;
   lastBattleLogSeq = 0;
   lastSelfAttack = -1;
   lastOppAttack = -1;
@@ -696,7 +811,10 @@ function wireUi() {
         onLobby: onSkyWayLobby,
         onGameState,
         onGameOver,
-        onActionError: (p) => toast(p.message || "操作エラー"),
+        onActionError: (p) => {
+          pendingChooseDiscard = null;
+          toast(p.message || "操作エラー");
+        },
       });
       await skywaySession.start();
       showScreen("screen-lobby");
@@ -737,7 +855,10 @@ function wireUi() {
         onLobby: onSkyWayLobby,
         onGameState,
         onGameOver,
-        onActionError: (p) => toast(p.message || "操作エラー"),
+        onActionError: (p) => {
+          pendingChooseDiscard = null;
+          toast(p.message || "操作エラー");
+        },
       });
       await skywaySession.start();
       showScreen("screen-lobby");
@@ -851,6 +972,12 @@ function wireUi() {
       const back = document.getElementById("card-zoom-backdrop");
       if (back && !back.hidden) {
         closeCardZoomPreview();
+        return;
+      }
+      if (pendingChooseDiscard) {
+        pendingChooseDiscard = null;
+        toast("選択捨てをキャンセルしました");
+        if (lastDuelGameState) onGameState(lastDuelGameState);
       }
     }
   });

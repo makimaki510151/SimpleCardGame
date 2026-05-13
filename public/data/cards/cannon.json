@@ -1,11 +1,11 @@
 {
   "id": "cannon",
-  "name": "キャノン",
-  "cost": 4,
+  "name": "大砲",
+  "cost": 5,
   "body": [
-    { "t": "相手に ", "c": "muted" },
-    { "t": "24", "c": "damage" },
-    { "t": " ダメージ。", "c": "muted" }
+    { "t": "交戦力 ", "c": "muted" },
+    { "t": "12", "c": "damage" },
+    { "t": "。", "c": "muted" }
   ],
-  "effects": [{ "type": "damage", "value": 24 }]
+  "effects": [{ "type": "damage", "value": 12 }]
 }

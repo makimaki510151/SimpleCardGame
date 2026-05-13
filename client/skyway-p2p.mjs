@@ -13,6 +13,12 @@ function parsePayload(data) {
   return JSON.parse(s);
 }
 
+function normalizeDiscardPicks(raw) {
+  if (!Array.isArray(raw)) return undefined;
+  const out = raw.map((x) => Number(x) | 0);
+  return out.length ? out : undefined;
+}
+
 function validateDeck(cardIds, byId) {
   if (!Array.isArray(cardIds) || cardIds.length !== 20) {
     return { ok: false, reason: "デッキはちょうど20枚である必要があります。" };
@@ -144,7 +150,9 @@ export function createSkyWayP2P({
   function handleGuestAction(msg) {
     if (!game) return;
     if (msg.t === "playCard") {
-      const res = Engine.playCard(game, guestSlot, msg.handIndex | 0, cardById);
+      const res = Engine.playCard(game, guestSlot, msg.handIndex | 0, cardById, {
+        discardPicks: normalizeDiscardPicks(msg.discardPicks),
+      });
       if (!res.ok) {
         broadcastDown({ t: "actionError", message: res.reason });
         return;
@@ -174,7 +182,9 @@ export function createSkyWayP2P({
   function handleHostLocalAction(msg) {
     if (!game) return;
     if (msg.t === "playCard") {
-      const res = Engine.playCard(game, hostSlot, msg.handIndex | 0, cardById);
+      const res = Engine.playCard(game, hostSlot, msg.handIndex | 0, cardById, {
+        discardPicks: normalizeDiscardPicks(msg.discardPicks),
+      });
       if (!res.ok) {
         onActionError({ message: res.reason });
         return;
@@ -360,11 +370,15 @@ export function createSkyWayP2P({
         uplinkStream.write(JSON.stringify({ t: "setReady", ready: !!ready }));
       }
     },
-    playCard(handIndex) {
+    playCard(handIndex, discardPicks) {
+      const payload = { t: "playCard", handIndex };
+      if (Array.isArray(discardPicks) && discardPicks.length > 0) {
+        payload.discardPicks = discardPicks.map((x) => x | 0);
+      }
       if (role === "host") {
-        handleHostLocalAction({ t: "playCard", handIndex });
+        handleHostLocalAction(payload);
       } else if (uplinkStream) {
-        uplinkStream.write(JSON.stringify({ t: "playCard", handIndex }));
+        uplinkStream.write(JSON.stringify(payload));
       }
     },
     endTurn() {

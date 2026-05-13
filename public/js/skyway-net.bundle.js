@@ -55570,7 +55570,7 @@ function shuffle(array) {
   }
   return a;
 }
-var MAX_HP = 100;
+var MAX_HP = 50;
 var MAX_COST_PER_TURN = 5;
 var DRAW_PER_TURN = 5;
 var FIRST_LOCK_ATTACK_BONUS = 2;
@@ -55601,7 +55601,9 @@ function createPlayerState(deckIds) {
     attackStock: 0,
     roundLocked: false,
     /** このプレイヤーが次にカードを使おうとしたとき、回数分プレイが無効化される */
-    negateIncomingPlays: 0
+    negateIncomingPlays: 0,
+    /** 先に確定した場合のみ交戦解決時に attackStock へ加算（カード効果） */
+    pendingFirstLockAttack: 0
   };
 }
 function reshuffleDiscardIntoDeck(p) {
@@ -55663,6 +55665,7 @@ function startRound(game) {
   for (const p of game.players) {
     p.roundLocked = false;
     p.attackStock = 0;
+    p.pendingFirstLockAttack = 0;
     applyCostCapForRound(p);
     const drawn = drawCards(p, DRAW_PER_TURN);
     p.hand.push(...drawn);
@@ -55676,6 +55679,13 @@ function startRound(game) {
     "system"
   );
 }
+function sumDiscardSelfChoose(effects) {
+  let n2 = 0;
+  for (const e2 of effects || []) {
+    if (e2.type === "discardSelfChoose") n2 += e2.value | 0;
+  }
+  return n2;
+}
 function describeEffectLine(e2) {
   const v = e2.value | 0;
   switch (e2.type) {
@@ -55688,7 +55698,9 @@ function describeEffectLine(e2) {
     case "draw":
       return `\u30C9\u30ED\u30FC${v}`;
     case "discardSelf":
-      return `\u81EA\u5206\u306E\u624B\u672D\u3092${v}\u679A\u6368\u3066\u308B`;
+      return `\u81EA\u5206\u306E\u624B\u672D\u3092${v}\u679A\u30E9\u30F3\u30C0\u30E0\u3067\u6368\u3066\u308B`;
+    case "discardSelfChoose":
+      return `\u81EA\u5206\u306E\u624B\u672D\u3092${v}\u679A\u9078\u3093\u3067\u6368\u3066\u308B`;
     case "discardOpponent":
     case "negateOpponentNextPlay":
       return `\u76F8\u624B\u306E\u6B21\u306E\u30D7\u30EC\u30A4\u3092${Math.max(1, v || 1)}\u56DE\u7121\u52B9\u5316`;
@@ -55696,15 +55708,20 @@ function describeEffectLine(e2) {
       return `HP+${v}\uFF08\u6761\u4EF6\uFF09`;
     case "capOpponentNextTurn":
       return `\u6B21\u30E9\u30A6\u30F3\u30C9\u76F8\u624B\u306E\u30B3\u30B9\u30C8\u4E0A\u9650${e2.cap | 0}`;
+    case "damageSelf":
+      return `\u81EA\u5206\u306EHP-${v}`;
+    case "attackIfFirstLockerResolve":
+      return `\u5148\u78BA\u5B9A\u306A\u3089\u4EA4\u6226\u89E3\u6C7A\u6642\u306B\u4EA4\u6226\u529B+${v}`;
     default:
       return e2.type || "?";
   }
 }
-function applyCardEffects(game, actorIndex, cardDef) {
+function applyCardEffects(game, actorIndex, cardDef, ctx = {}) {
   const opponentIndex = 1 - actorIndex;
   const self2 = game.players[actorIndex];
   const opp = game.players[opponentIndex];
   const effects = cardDef.effects || [];
+  const choosePool = ctx.chooseDiscardPool && ctx.chooseDiscardPool.length ? ctx.chooseDiscardPool : null;
   for (const e2 of effects) {
     if (e2.type === "damage") {
       self2.attackStock += e2.value | 0;
@@ -55715,6 +55732,15 @@ function applyCardEffects(game, actorIndex, cardDef) {
       self2.hand.push(...drawn);
     } else if (e2.type === "discardSelf") {
       discardRandomFromHand(self2, e2.value | 0);
+    } else if (e2.type === "discardSelfChoose") {
+      const n2 = e2.value | 0;
+      for (let k = 0; k < n2; k++) {
+        if (!choosePool || choosePool.length === 0) break;
+        const ix = choosePool.shift();
+        if (ix < 0 || ix >= self2.hand.length) break;
+        const id = self2.hand.splice(ix, 1)[0];
+        self2.discard.push(id);
+      }
     } else if (e2.type === "discardOpponent" || e2.type === "negateOpponentNextPlay") {
       const n2 = Math.max(1, e2.value | 0);
       opp.negateIncomingPlays = (opp.negateIncomingPlays | 0) + n2;
@@ -55729,10 +55755,14 @@ function applyCardEffects(game, actorIndex, cardDef) {
     } else if (e2.type === "capOpponentNextTurn") {
       const cap = Math.max(1, Math.min(MAX_COST_PER_TURN, e2.cap | 0));
       opp.costCapOnNextTurn = cap;
+    } else if (e2.type === "damageSelf") {
+      self2.hp = Math.max(0, self2.hp - (e2.value | 0));
+    } else if (e2.type === "attackIfFirstLockerResolve") {
+      self2.pendingFirstLockAttack = (self2.pendingFirstLockAttack | 0) + (e2.value | 0);
     }
   }
 }
-function playCard(game, playerIndex, handIndex, cardById) {
+function playCard(game, playerIndex, handIndex, cardById, opts = {}) {
   const p = game.players[playerIndex];
   if (p.roundLocked) {
     return { ok: false, reason: "\u78BA\u5B9A\u6E08\u307F\u306E\u305F\u3081\u30AB\u30FC\u30C9\u306F\u4F7F\u3048\u307E\u305B\u3093\u3002" };
@@ -55760,10 +55790,39 @@ function playCard(game, playerIndex, handIndex, cardById) {
   if (cost > p.costPool) {
     return { ok: false, reason: "\u30B3\u30B9\u30C8\u304C\u8DB3\u308A\u307E\u305B\u3093\u3002" };
   }
+  const needChoose = sumDiscardSelfChoose(def.effects);
+  const picks = opts.discardPicks;
+  const L = p.hand.length;
+  if (needChoose > 0) {
+    if (!Array.isArray(picks) || picks.length !== needChoose) {
+      return {
+        ok: false,
+        reason: `\u3053\u306E\u30AB\u30FC\u30C9\u306F\u4F7F\u7528\u6642\u306B\u624B\u672D\u3092${needChoose}\u679A\u9078\u3093\u3067\u6368\u3066\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059\u3002`
+      };
+    }
+    if (L - 1 < needChoose) {
+      return { ok: false, reason: "\u9078\u3093\u3067\u6368\u3066\u308B\u624B\u672D\u304C\u8DB3\u308A\u307E\u305B\u3093\u3002" };
+    }
+    const uniq = new Set(picks);
+    if (uniq.size !== picks.length) {
+      return { ok: false, reason: "\u6368\u3066\u308B\u624B\u672D\u306E\u6307\u5B9A\u304C\u91CD\u8907\u3057\u3066\u3044\u307E\u3059\u3002" };
+    }
+    for (const ix of picks) {
+      const n2 = ix | 0;
+      if (n2 < 0 || n2 >= L - 1) {
+        return { ok: false, reason: "\u6368\u3066\u308B\u624B\u672D\u306E\u6307\u5B9A\u304C\u4E0D\u6B63\u3067\u3059\u3002" };
+      }
+    }
+  } else if (picks && picks.length > 0) {
+    return { ok: false, reason: "\u3053\u306E\u30AB\u30FC\u30C9\u3067\u306F\u624B\u672D\u306E\u6307\u5B9A\u6368\u3066\u306F\u4E0D\u8981\u3067\u3059\u3002" };
+  }
   p.costPool -= cost;
   p.hand.splice(handIndex, 1);
   p.discard.push(cardId);
-  applyCardEffects(game, playerIndex, def);
+  const choosePool = needChoose > 0 ? [...picks].sort((a, b) => b - a) : null;
+  applyCardEffects(game, playerIndex, def, {
+    chooseDiscardPool: choosePool
+  });
   const effText = (def.effects || []).map(describeEffectLine).join(" / ");
   pushLog(
     game,
@@ -55782,10 +55841,11 @@ function lockRound(game, playerIndex) {
   p.roundLocked = true;
   if (game.firstLocker === null) {
     game.firstLocker = playerIndex;
+    p.attackStock += FIRST_LOCK_ATTACK_BONUS;
     pushLog(
       game,
       playerIndex,
-      `\u5148\u306B\u78BA\u5B9A\uFF08\u4EA4\u6226\u6642 +${FIRST_LOCK_ATTACK_BONUS} \u4EA4\u6226\u529B\uFF09`,
+      `\u5148\u306B\u78BA\u5B9A \u2014 \u4EA4\u6226\u529B+${FIRST_LOCK_ATTACK_BONUS}\uFF08\u5148\u78BA\u5B9A\u30DC\u30FC\u30CA\u30B9\uFF09`,
       null,
       "lock"
     );
@@ -55800,7 +55860,17 @@ function bothLocked(game) {
 function resolveRound(game, cardById) {
   if (game.firstLocker != null) {
     const pl = game.players[game.firstLocker];
-    pl.attackStock += FIRST_LOCK_ATTACK_BONUS;
+    const delayed = pl.pendingFirstLockAttack | 0;
+    if (delayed > 0) {
+      pl.attackStock += delayed;
+      pushLog(
+        game,
+        game.firstLocker,
+        `\u4EA4\u6226\u76F4\u524D \u2014 \u5148\u78BA\u5B9A\u3067\u4EA4\u6226\u529B+${delayed}\uFF08\u9045\u5EF6\u52B9\u679C\uFF09`,
+        null,
+        "clash"
+      );
+    }
   }
   const a0 = game.players[0].attackStock;
   const a1 = game.players[1].attackStock;
@@ -55853,6 +55923,7 @@ function publicSnapshot(game, viewerIndex, cardById) {
       costPool: self2.costPool,
       maxCost: self2.turnMaxCost ?? MAX_COST_PER_TURN,
       attackStock: self2.attackStock,
+      pendingFirstLockAttack: self2.pendingFirstLockAttack | 0,
       roundLocked: self2.roundLocked,
       negateIncomingPlays: self2.negateIncomingPlays
     },
@@ -55880,6 +55951,11 @@ var META_UPLINK = JSON.stringify({ scg: "uplink" });
 function parsePayload(data) {
   const s = typeof data === "string" ? data : JSON.stringify(data);
   return JSON.parse(s);
+}
+function normalizeDiscardPicks(raw) {
+  if (!Array.isArray(raw)) return void 0;
+  const out = raw.map((x) => Number(x) | 0);
+  return out.length ? out : void 0;
 }
 function validateDeck(cardIds, byId) {
   if (!Array.isArray(cardIds) || cardIds.length !== 20) {
@@ -56003,7 +56079,9 @@ function createSkyWayP2P({
   function handleGuestAction(msg) {
     if (!game) return;
     if (msg.t === "playCard") {
-      const res = playCard(game, guestSlot, msg.handIndex | 0, cardById);
+      const res = playCard(game, guestSlot, msg.handIndex | 0, cardById, {
+        discardPicks: normalizeDiscardPicks(msg.discardPicks)
+      });
       if (!res.ok) {
         broadcastDown({ t: "actionError", message: res.reason });
         return;
@@ -56032,7 +56110,9 @@ function createSkyWayP2P({
   function handleHostLocalAction(msg) {
     if (!game) return;
     if (msg.t === "playCard") {
-      const res = playCard(game, hostSlot, msg.handIndex | 0, cardById);
+      const res = playCard(game, hostSlot, msg.handIndex | 0, cardById, {
+        discardPicks: normalizeDiscardPicks(msg.discardPicks)
+      });
       if (!res.ok) {
         onActionError({ message: res.reason });
         return;
@@ -56204,11 +56284,15 @@ function createSkyWayP2P({
         uplinkStream.write(JSON.stringify({ t: "setReady", ready: !!ready }));
       }
     },
-    playCard(handIndex) {
+    playCard(handIndex, discardPicks) {
+      const payload = { t: "playCard", handIndex };
+      if (Array.isArray(discardPicks) && discardPicks.length > 0) {
+        payload.discardPicks = discardPicks.map((x) => x | 0);
+      }
       if (role === "host") {
-        handleHostLocalAction({ t: "playCard", handIndex });
+        handleHostLocalAction(payload);
       } else if (uplinkStream) {
-        uplinkStream.write(JSON.stringify({ t: "playCard", handIndex }));
+        uplinkStream.write(JSON.stringify(payload));
       }
     },
     endTurn() {

@@ -1,11 +1,11 @@
 {
   "id": "needle",
-  "name": "ニードル",
+  "name": "針",
   "cost": 1,
   "body": [
-    { "t": "相手に ", "c": "muted" },
-    { "t": "5", "c": "damage" },
-    { "t": " ダメージ。", "c": "muted" }
+    { "t": "交戦力 ", "c": "muted" },
+    { "t": "3", "c": "damage" },
+    { "t": "。", "c": "muted" }
   ],
-  "effects": [{ "type": "damage", "value": 5 }]
+  "effects": [{ "type": "damage", "value": 3 }]
 }

@@ -4,13 +4,13 @@
   "cost": 2,
   "body": [
     { "t": "相手に ", "c": "muted" },
-    { "t": "9", "c": "damage" },
+    { "t": "4", "c": "damage" },
     { "t": " ダメージ。カードを ", "c": "muted" },
     { "t": "1", "c": "draw" },
     { "t": " 引く。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 9 },
+    { "type": "damage", "value": 4 },
     { "type": "draw", "value": 1 }
   ]
 }

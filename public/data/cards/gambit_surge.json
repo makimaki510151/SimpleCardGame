@@ -1,26 +1,26 @@
-{
-  "id": "gambit_surge",
-  "name": "ギャンビットサージ",
-  "cost": 1,
-  "body": [
-    { "t": "カードを ", "c": "muted" },
-    { "t": "1", "c": "draw" },
-    { "t": " 引き、手札を ", "c": "muted" },
-    { "t": "1", "c": "discard" },
-    { "t": " 捨てる。自分の手札が ", "c": "muted" },
-    { "t": "4", "c": "condition" },
-    { "t": " 枚以上なら相手に ", "c": "muted" },
-    { "t": "6", "c": "damage" },
-    { "t": "。", "c": "muted" }
-  ],
-  "effects": [
-    { "type": "draw", "value": 1 },
-    { "type": "discardSelf", "value": 1 },
-    {
-      "type": "damageIf",
-      "value": 6,
-      "mode": "selfHandGte",
-      "threshold": 4
-    }
-  ]
-}
+{
+  "id": "gambit_surge",
+  "name": "ギャンビットサージ",
+  "cost": 1,
+  "body": [
+    { "t": "カードを ", "c": "muted" },
+    { "t": "1", "c": "draw" },
+    { "t": " 引き、手札を ", "c": "muted" },
+    { "t": "1", "c": "discard" },
+    { "t": " 枚ランダムで捨てる。自分の手札が ", "c": "muted" },
+    { "t": "4", "c": "condition" },
+    { "t": " 枚以上なら相手に ", "c": "muted" },
+    { "t": "3", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "draw", "value": 1 },
+    { "type": "discardSelf", "value": 1 },
+    {
+      "type": "damageIf",
+      "value": 3,
+      "mode": "selfHandGte",
+      "threshold": 4
+    }
+  ]
+}

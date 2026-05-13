@@ -1,23 +1,26 @@
-{
-  "id": "pierce_window",
-  "name": "窓突き",
-  "cost": 0,
-  "body": [
-    { "t": "手札を ", "c": "muted" },
-    { "t": "1", "c": "discard" },
-    { "t": " 捨てる。相手の手札が ", "c": "muted" },
-    { "t": "5", "c": "condition" },
-    { "t": " 以上のときだけ交戦力 ", "c": "muted" },
-    { "t": "7", "c": "damage" },
-    { "t": "。", "c": "muted" }
-  ],
-  "effects": [
-    { "type": "discardSelf", "value": 1 },
-    {
-      "type": "damageIf",
-      "mode": "opponentHandGte",
-      "threshold": 5,
-      "value": 7
-    }
-  ]
-}
+{
+  "id": "pierce_window",
+  "name": "窓突き",
+  "cost": 0,
+  "body": [
+    { "t": "手札を ", "c": "muted" },
+    { "t": "1", "c": "discard" },
+    { "t": " 枚選んで捨てる。相手の手札が ", "c": "muted" },
+    { "t": "5", "c": "condition" },
+    { "t": " 以上のときだけ交戦力 ", "c": "muted" },
+    { "t": "3", "c": "damage" },
+    { "t": "。代償として自分のHP ", "c": "muted" },
+    { "t": "1", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "discardSelfChoose", "value": 1 },
+    {
+      "type": "damageIf",
+      "mode": "opponentHandGte",
+      "threshold": 5,
+      "value": 3
+    },
+    { "type": "damageSelf", "value": 1 }
+  ]
+}

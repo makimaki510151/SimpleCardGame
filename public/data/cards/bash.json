@@ -1,11 +1,11 @@
 {
   "id": "bash",
-  "name": "バッシュ",
-  "cost": 3,
+  "name": "打ち込み",
+  "cost": 4,
   "body": [
-    { "t": "相手に ", "c": "muted" },
-    { "t": "18", "c": "damage" },
-    { "t": " ダメージ。", "c": "muted" }
+    { "t": "交戦力 ", "c": "muted" },
+    { "t": "9", "c": "damage" },
+    { "t": "。", "c": "muted" }
   ],
-  "effects": [{ "type": "damage", "value": 18 }]
+  "effects": [{ "type": "damage", "value": 9 }]
 }

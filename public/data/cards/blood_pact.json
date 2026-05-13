@@ -4,13 +4,13 @@
   "cost": 2,
   "body": [
     { "t": "相手に ", "c": "muted" },
-    { "t": "6", "c": "damage" },
+    { "t": "3", "c": "damage" },
     { "t": "。自分は ", "c": "muted" },
-    { "t": "4", "c": "heal" },
+    { "t": "2", "c": "heal" },
     { "t": " 回復。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 6 },
-    { "type": "heal", "value": 4 }
+    { "type": "damage", "value": 3 },
+    { "type": "heal", "value": 2 }
   ]
 }

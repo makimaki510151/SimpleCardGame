@@ -11,7 +11,7 @@ function shuffle(array) {
   return a;
 }
 
-export const MAX_HP = 100;
+export const MAX_HP = 50;
 export const MAX_COST_PER_TURN = 5;
 export const DRAW_PER_TURN = 5;
 /** 先にラウンド確定したプレイヤーに付与される交戦力ボーナス（蓄積に加算） */
@@ -47,6 +47,8 @@ export function createPlayerState(deckIds) {
     roundLocked: false,
     /** このプレイヤーが次にカードを使おうとしたとき、回数分プレイが無効化される */
     negateIncomingPlays: 0,
+    /** 先に確定した場合のみ交戦解決時に attackStock へ加算（カード効果） */
+    pendingFirstLockAttack: 0,
   };
 }
 
@@ -121,6 +123,7 @@ export function startRound(game) {
   for (const p of game.players) {
     p.roundLocked = false;
     p.attackStock = 0;
+    p.pendingFirstLockAttack = 0;
     applyCostCapForRound(p);
     const drawn = drawCards(p, DRAW_PER_TURN);
     p.hand.push(...drawn);
@@ -135,6 +138,14 @@ export function startRound(game) {
   );
 }
 
+function sumDiscardSelfChoose(effects) {
+  let n = 0;
+  for (const e of effects || []) {
+    if (e.type === "discardSelfChoose") n += e.value | 0;
+  }
+  return n;
+}
+
 function describeEffectLine(e) {
   const v = e.value | 0;
   switch (e.type) {
@@ -147,7 +158,9 @@ function describeEffectLine(e) {
     case "draw":
       return `ドロー${v}`;
     case "discardSelf":
-      return `自分の手札を${v}枚捨てる`;
+      return `自分の手札を${v}枚ランダムで捨てる`;
+    case "discardSelfChoose":
+      return `自分の手札を${v}枚選んで捨てる`;
     case "discardOpponent":
     case "negateOpponentNextPlay":
       return `相手の次のプレイを${Math.max(1, v || 1)}回無効化`;
@@ -155,16 +168,24 @@ function describeEffectLine(e) {
       return `HP+${v}（条件）`;
     case "capOpponentNextTurn":
       return `次ラウンド相手のコスト上限${e.cap | 0}`;
+    case "damageSelf":
+      return `自分のHP-${v}`;
+    case "attackIfFirstLockerResolve":
+      return `先確定なら交戦解決時に交戦力+${v}`;
     default:
       return e.type || "?";
   }
 }
 
-function applyCardEffects(game, actorIndex, cardDef) {
+function applyCardEffects(game, actorIndex, cardDef, ctx = {}) {
   const opponentIndex = 1 - actorIndex;
   const self = game.players[actorIndex];
   const opp = game.players[opponentIndex];
   const effects = cardDef.effects || [];
+  const choosePool =
+    ctx.chooseDiscardPool && ctx.chooseDiscardPool.length
+      ? ctx.chooseDiscardPool
+      : null;
   for (const e of effects) {
     if (e.type === "damage") {
       self.attackStock += e.value | 0;
@@ -175,6 +196,15 @@ function applyCardEffects(game, actorIndex, cardDef) {
       self.hand.push(...drawn);
     } else if (e.type === "discardSelf") {
       discardRandomFromHand(self, e.value | 0);
+    } else if (e.type === "discardSelfChoose") {
+      const n = e.value | 0;
+      for (let k = 0; k < n; k++) {
+        if (!choosePool || choosePool.length === 0) break;
+        const ix = choosePool.shift();
+        if (ix < 0 || ix >= self.hand.length) break;
+        const id = self.hand.splice(ix, 1)[0];
+        self.discard.push(id);
+      }
     } else if (
       e.type === "discardOpponent" ||
       e.type === "negateOpponentNextPlay"
@@ -192,11 +222,16 @@ function applyCardEffects(game, actorIndex, cardDef) {
     } else if (e.type === "capOpponentNextTurn") {
       const cap = Math.max(1, Math.min(MAX_COST_PER_TURN, e.cap | 0));
       opp.costCapOnNextTurn = cap;
+    } else if (e.type === "damageSelf") {
+      self.hp = Math.max(0, self.hp - (e.value | 0));
+    } else if (e.type === "attackIfFirstLockerResolve") {
+      self.pendingFirstLockAttack =
+        (self.pendingFirstLockAttack | 0) + (e.value | 0);
     }
   }
 }
 
-export function playCard(game, playerIndex, handIndex, cardById) {
+export function playCard(game, playerIndex, handIndex, cardById, opts = {}) {
   const p = game.players[playerIndex];
   if (p.roundLocked) {
     return { ok: false, reason: "確定済みのためカードは使えません。" };
@@ -226,10 +261,43 @@ export function playCard(game, playerIndex, handIndex, cardById) {
   if (cost > p.costPool) {
     return { ok: false, reason: "コストが足りません。" };
   }
+
+  const needChoose = sumDiscardSelfChoose(def.effects);
+  const picks = opts.discardPicks;
+  const L = p.hand.length;
+  if (needChoose > 0) {
+    if (!Array.isArray(picks) || picks.length !== needChoose) {
+      return {
+        ok: false,
+        reason: `このカードは使用時に手札を${needChoose}枚選んで捨てる必要があります。`,
+      };
+    }
+    if (L - 1 < needChoose) {
+      return { ok: false, reason: "選んで捨てる手札が足りません。" };
+    }
+    const uniq = new Set(picks);
+    if (uniq.size !== picks.length) {
+      return { ok: false, reason: "捨てる手札の指定が重複しています。" };
+    }
+    for (const ix of picks) {
+      const n = ix | 0;
+      if (n < 0 || n >= L - 1) {
+        return { ok: false, reason: "捨てる手札の指定が不正です。" };
+      }
+    }
+  } else if (picks && picks.length > 0) {
+    return { ok: false, reason: "このカードでは手札の指定捨ては不要です。" };
+  }
+
   p.costPool -= cost;
   p.hand.splice(handIndex, 1);
   p.discard.push(cardId);
-  applyCardEffects(game, playerIndex, def);
+
+  const choosePool =
+    needChoose > 0 ? [...picks].sort((a, b) => b - a) : null;
+  applyCardEffects(game, playerIndex, def, {
+    chooseDiscardPool: choosePool,
+  });
 
   const effText = (def.effects || []).map(describeEffectLine).join(" / ");
   pushLog(
@@ -254,10 +322,11 @@ export function lockRound(game, playerIndex) {
   p.roundLocked = true;
   if (game.firstLocker === null) {
     game.firstLocker = playerIndex;
+    p.attackStock += FIRST_LOCK_ATTACK_BONUS;
     pushLog(
       game,
       playerIndex,
-      `先に確定（交戦時 +${FIRST_LOCK_ATTACK_BONUS} 交戦力）`,
+      `先に確定 — 交戦力+${FIRST_LOCK_ATTACK_BONUS}（先確定ボーナス）`,
       null,
       "lock"
     );
@@ -277,7 +346,17 @@ export function bothLocked(game) {
 export function resolveRound(game, cardById) {
   if (game.firstLocker != null) {
     const pl = game.players[game.firstLocker];
-    pl.attackStock += FIRST_LOCK_ATTACK_BONUS;
+    const delayed = pl.pendingFirstLockAttack | 0;
+    if (delayed > 0) {
+      pl.attackStock += delayed;
+      pushLog(
+        game,
+        game.firstLocker,
+        `交戦直前 — 先確定で交戦力+${delayed}（遅延効果）`,
+        null,
+        "clash"
+      );
+    }
   }
 
   const a0 = game.players[0].attackStock;
@@ -336,6 +415,7 @@ export function publicSnapshot(game, viewerIndex, cardById) {
       costPool: self.costPool,
       maxCost: self.turnMaxCost ?? MAX_COST_PER_TURN,
       attackStock: self.attackStock,
+      pendingFirstLockAttack: self.pendingFirstLockAttack | 0,
       roundLocked: self.roundLocked,
       negateIncomingPlays: self.negateIncomingPlays,
     },

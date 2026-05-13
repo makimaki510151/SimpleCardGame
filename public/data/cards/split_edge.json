@@ -4,18 +4,18 @@
   "cost": 3,
   "body": [
     { "t": "自分は ", "c": "muted" },
-    { "t": "3", "c": "heal" },
+    { "t": "2", "c": "heal" },
     { "t": " 回復。相手の手札が ", "c": "muted" },
     { "t": "3", "c": "condition" },
     { "t": " 枚以上なら ", "c": "muted" },
-    { "t": "11", "c": "damage" },
+    { "t": "5", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "heal", "value": 3 },
+    { "type": "heal", "value": 2 },
     {
       "type": "damageIf",
-      "value": 11,
+      "value": 5,
       "mode": "opponentHandGte",
       "threshold": 3
     }

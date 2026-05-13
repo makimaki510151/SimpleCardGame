@@ -3,6 +3,8 @@ const MAX_COST = 5;
 /**
  * 効果を数値ベクトルに畳み込み（完全上位互換判定用）。
  * 条件付きダメージ／回復は保守的に「常に成立」とみなしフル value を加算する。
+ * attackIfFirstLockerResolve は交戦タイミング依存のため集計に含めず、
+ * assertNoStrictDominance ではその効果を持つカードをペア検査から除外する。
  */
 function aggregateForDominance(card) {
   const eff = card.effects || [];
@@ -27,6 +29,7 @@ function aggregateForDominance(card) {
         draw += v;
         break;
       case "discardSelf":
+      case "discardSelfChoose":
         selfDisc += v;
         break;
       case "discardOpponent":
@@ -39,11 +42,16 @@ function aggregateForDominance(card) {
       case "healIf":
         heal += v;
         break;
+      case "attackIfFirstLockerResolve":
+        break;
       case "capOpponentNextTurn": {
         const cap = Math.max(1, Math.min(MAX_COST, e.cap | 0));
         oppCostCapDrop += MAX_COST - cap;
         break;
       }
+      case "damageSelf":
+        selfDisc += v;
+        break;
       default:
         break;
     }
@@ -84,6 +92,10 @@ function strictlyDominates(aVec, bVec) {
   return strict;
 }
 
+function cardHasFirstLockerResolve(card) {
+  return (card.effects || []).some((e) => e.type === "attackIfFirstLockerResolve");
+}
+
 function assertNoStrictDominance(byId) {
   const ids = Object.keys(byId);
   const vecs = {};
@@ -96,6 +108,12 @@ function assertNoStrictDominance(byId) {
       if (i === j) continue;
       const ida = ids[i];
       const idb = ids[j];
+      if (
+        cardHasFirstLockerResolve(byId[ida]) ||
+        cardHasFirstLockerResolve(byId[idb])
+      ) {
+        continue;
+      }
       if (strictlyDominates(vecs[ida], vecs[idb])) {
         pairs.push({ dominant: ida, weaker: idb });
       }

@@ -4,17 +4,17 @@
   "cost": 0,
   "body": [
     { "t": "自分のHPが ", "c": "muted" },
-    { "t": "35", "c": "condition" },
+    { "t": "18", "c": "condition" },
     { "t": " 以下のときだけ ", "c": "muted" },
-    { "t": "5", "c": "heal" },
+    { "t": "2", "c": "heal" },
     { "t": " 回復。", "c": "muted" }
   ],
   "effects": [
     {
       "type": "healIf",
       "mode": "selfHpLte",
-      "threshold": 35,
-      "value": 5
+      "threshold": 18,
+      "value": 2
     }
   ]
 }

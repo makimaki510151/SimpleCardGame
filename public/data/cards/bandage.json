@@ -4,8 +4,8 @@
   "cost": 1,
   "body": [
     { "t": "自分のHPを ", "c": "muted" },
-    { "t": "6", "c": "heal" },
+    { "t": "4", "c": "heal" },
     { "t": " 回復。", "c": "muted" }
   ],
-  "effects": [{ "type": "heal", "value": 6 }]
+  "effects": [{ "type": "heal", "value": 4 }]
 }

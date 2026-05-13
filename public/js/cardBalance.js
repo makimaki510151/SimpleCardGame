@@ -23,6 +23,7 @@
           draw += v;
           break;
         case "discardSelf":
+        case "discardSelfChoose":
           selfDisc += v;
           break;
         case "discardOpponent":
@@ -35,11 +36,16 @@
         case "healIf":
           heal += v;
           break;
+        case "attackIfFirstLockerResolve":
+          break;
         case "capOpponentNextTurn": {
           const cap = Math.max(1, Math.min(MAX_COST, e.cap | 0));
           oppCostCapDrop += MAX_COST - cap;
           break;
         }
+        case "damageSelf":
+          selfDisc += v;
+          break;
         default:
           break;
       }
@@ -83,12 +89,15 @@
       for (const id of ids) {
         vecs[id] = aggregateForDominance(byId[id]);
       }
+      const hasFirst = (id) =>
+        (byId[id].effects || []).some((e) => e.type === "attackIfFirstLockerResolve");
       const pairs = [];
       for (let i = 0; i < ids.length; i++) {
         for (let j = 0; j < ids.length; j++) {
           if (i === j) continue;
           const ida = ids[i];
           const idb = ids[j];
+          if (hasFirst(ida) || hasFirst(idb)) continue;
           if (strictlyDominates(vecs[ida], vecs[idb])) {
             pairs.push({ dominant: ida, weaker: idb });
           }
