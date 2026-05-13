@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { assertNoStrictDominance } = require("./cardBalance");
 
 const CARDS_DIR = path.join(__dirname, "..", "public", "data", "cards");
 
@@ -15,6 +16,7 @@ function loadCardCatalog() {
     }
     byId[id] = card;
   }
+  assertNoStrictDominance(byId);
   return { manifest, byId };
 }
 

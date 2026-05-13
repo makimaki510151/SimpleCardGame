@@ -1,0 +1,16 @@
+{
+  "id": "ogre_press",
+  "name": "オーガプレス",
+  "cost": 5,
+  "body": [
+    { "t": "相手に ", "c": "muted" },
+    { "t": "16", "c": "damage" },
+    { "t": "。相手の手札を ", "c": "muted" },
+    { "t": "1", "c": "discard" },
+    { "t": " 枚捨てさせる。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "damage", "value": 16 },
+    { "type": "discardOpponent", "value": 1 }
+  ]
+}

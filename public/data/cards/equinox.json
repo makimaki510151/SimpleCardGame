@@ -1,0 +1,16 @@
+{
+  "id": "equinox",
+  "name": "イクイノックス",
+  "cost": 4,
+  "body": [
+    { "t": "相手に ", "c": "muted" },
+    { "t": "7", "c": "damage" },
+    { "t": "。自分は ", "c": "muted" },
+    { "t": "7", "c": "heal" },
+    { "t": " 回復。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "damage", "value": 7 },
+    { "type": "heal", "value": 7 }
+  ]
+}

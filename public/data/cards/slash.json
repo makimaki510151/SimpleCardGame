@@ -1,11 +1,19 @@
 {
   "id": "slash",
   "name": "スラッシュ",
-  "cost": 2,
+  "cost": 3,
   "body": [
     { "t": "相手に ", "c": "muted" },
     { "t": "12", "c": "damage" },
-    { "t": " ダメージ。", "c": "muted" }
+    { "t": "。自分は ", "c": "muted" },
+    { "t": "1", "c": "heal" },
+    { "t": " 回復し、カードを ", "c": "muted" },
+    { "t": "1", "c": "draw" },
+    { "t": " 引く。", "c": "muted" }
   ],
-  "effects": [{ "type": "damage", "value": 12 }]
+  "effects": [
+    { "type": "damage", "value": 12 },
+    { "type": "heal", "value": 1 },
+    { "type": "draw", "value": 1 }
+  ]
 }

@@ -55580,7 +55580,9 @@ function createPlayerState(deckIds) {
     deck,
     hand: [],
     discard: [],
-    costPool: MAX_COST_PER_TURN
+    costPool: MAX_COST_PER_TURN,
+    turnMaxCost: MAX_COST_PER_TURN,
+    costCapOnNextTurn: null
   };
 }
 function reshuffleDiscardIntoDeck(p) {
@@ -55600,9 +55602,39 @@ function drawCards(p, n2) {
   }
   return drawn;
 }
+function discardRandomFromHand(p, n2) {
+  const take = Math.min(n2 | 0, p.hand.length);
+  if (take <= 0) return;
+  const idxs = p.hand.map((_, i) => i);
+  shuffle(idxs);
+  const toRemove = idxs.slice(0, take).sort((a, b) => b - a);
+  for (const ix of toRemove) {
+    const id = p.hand.splice(ix, 1)[0];
+    p.discard.push(id);
+  }
+}
+function evalCondition(game, actorIndex, cond) {
+  const self2 = game.players[actorIndex];
+  const opp = game.players[1 - actorIndex];
+  switch (cond.mode) {
+    case "opponentHandGte":
+      return opp.hand.length >= (cond.threshold | 0);
+    case "selfHandGte":
+      return self2.hand.length >= (cond.threshold | 0);
+    case "selfHpLte":
+      return self2.hp <= (cond.threshold | 0);
+    case "opponentHpGte":
+      return opp.hp >= (cond.threshold | 0);
+    default:
+      return false;
+  }
+}
 function startTurn(game, playerIndex) {
   const p = game.players[playerIndex];
-  p.costPool = MAX_COST_PER_TURN;
+  const cap = p.costCapOnNextTurn != null ? Math.max(1, Math.min(MAX_COST_PER_TURN, p.costCapOnNextTurn | 0)) : MAX_COST_PER_TURN;
+  p.costCapOnNextTurn = null;
+  p.turnMaxCost = cap;
+  p.costPool = cap;
   const drawn = drawCards(p, DRAW_PER_TURN);
   p.hand.push(...drawn);
 }
@@ -55628,6 +55660,24 @@ function applyCardEffects(game, actorIndex, cardDef) {
       opp.hp = Math.max(0, opp.hp - (e2.value | 0));
     } else if (e2.type === "heal") {
       self2.hp = Math.min(MAX_HP, self2.hp + (e2.value | 0));
+    } else if (e2.type === "draw") {
+      const drawn = drawCards(self2, e2.value | 0);
+      self2.hand.push(...drawn);
+    } else if (e2.type === "discardSelf") {
+      discardRandomFromHand(self2, e2.value | 0);
+    } else if (e2.type === "discardOpponent") {
+      discardRandomFromHand(opp, e2.value | 0);
+    } else if (e2.type === "damageIf") {
+      if (evalCondition(game, actorIndex, e2)) {
+        opp.hp = Math.max(0, opp.hp - (e2.value | 0));
+      }
+    } else if (e2.type === "healIf") {
+      if (evalCondition(game, actorIndex, e2)) {
+        self2.hp = Math.min(MAX_HP, self2.hp + (e2.value | 0));
+      }
+    } else if (e2.type === "capOpponentNextTurn") {
+      const cap = Math.max(1, Math.min(MAX_COST_PER_TURN, e2.cap | 0));
+      opp.costCapOnNextTurn = cap;
     }
   }
 }
@@ -55667,7 +55717,7 @@ function publicSnapshot(game, viewerIndex, cardById) {
       deckCount: self2.deck.length,
       discardCount: self2.discard.length,
       costPool: self2.costPool,
-      maxCost: MAX_COST_PER_TURN
+      maxCost: self2.turnMaxCost ?? MAX_COST_PER_TURN
     },
     opponent: {
       hp: opp.hp,

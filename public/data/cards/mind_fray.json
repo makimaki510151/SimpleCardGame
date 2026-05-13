@@ -1,0 +1,16 @@
+{
+  "id": "mind_fray",
+  "name": "マインドフレイ",
+  "cost": 2,
+  "body": [
+    { "t": "カードを ", "c": "muted" },
+    { "t": "2", "c": "draw" },
+    { "t": " 引く。相手の手札を ", "c": "muted" },
+    { "t": "1", "c": "discard" },
+    { "t": " 枚ランダムで捨てさせる。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "draw", "value": 2 },
+    { "type": "discardOpponent", "value": 1 }
+  ]
+}

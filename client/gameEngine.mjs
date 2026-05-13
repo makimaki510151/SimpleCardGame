@@ -1,5 +1,5 @@
 /**
- * ブラウザ（SkyWay ホスト）用。server/gameEngine.js と同じルールのため、変更時は両方を揃えてください。
+ * SkyWay ホスト用ゲームエンジン。効果を追加したら server/cardBalance.js の集計も見直す。
  */
 function shuffle(array) {
   const a = array.slice();
@@ -22,6 +22,8 @@ export function createPlayerState(deckIds) {
     hand: [],
     discard: [],
     costPool: MAX_COST_PER_TURN,
+    turnMaxCost: MAX_COST_PER_TURN,
+    costCapOnNextTurn: null,
   };
 }
 
@@ -44,9 +46,44 @@ function drawCards(p, n) {
   return drawn;
 }
 
+function discardRandomFromHand(p, n) {
+  const take = Math.min(n | 0, p.hand.length);
+  if (take <= 0) return;
+  const idxs = p.hand.map((_, i) => i);
+  shuffle(idxs);
+  const toRemove = idxs.slice(0, take).sort((a, b) => b - a);
+  for (const ix of toRemove) {
+    const id = p.hand.splice(ix, 1)[0];
+    p.discard.push(id);
+  }
+}
+
+function evalCondition(game, actorIndex, cond) {
+  const self = game.players[actorIndex];
+  const opp = game.players[1 - actorIndex];
+  switch (cond.mode) {
+    case "opponentHandGte":
+      return opp.hand.length >= (cond.threshold | 0);
+    case "selfHandGte":
+      return self.hand.length >= (cond.threshold | 0);
+    case "selfHpLte":
+      return self.hp <= (cond.threshold | 0);
+    case "opponentHpGte":
+      return opp.hp >= (cond.threshold | 0);
+    default:
+      return false;
+  }
+}
+
 export function startTurn(game, playerIndex) {
   const p = game.players[playerIndex];
-  p.costPool = MAX_COST_PER_TURN;
+  const cap =
+    p.costCapOnNextTurn != null
+      ? Math.max(1, Math.min(MAX_COST_PER_TURN, p.costCapOnNextTurn | 0))
+      : MAX_COST_PER_TURN;
+  p.costCapOnNextTurn = null;
+  p.turnMaxCost = cap;
+  p.costPool = cap;
   const drawn = drawCards(p, DRAW_PER_TURN);
   p.hand.push(...drawn);
 }
@@ -75,6 +112,24 @@ function applyCardEffects(game, actorIndex, cardDef) {
       opp.hp = Math.max(0, opp.hp - (e.value | 0));
     } else if (e.type === "heal") {
       self.hp = Math.min(MAX_HP, self.hp + (e.value | 0));
+    } else if (e.type === "draw") {
+      const drawn = drawCards(self, e.value | 0);
+      self.hand.push(...drawn);
+    } else if (e.type === "discardSelf") {
+      discardRandomFromHand(self, e.value | 0);
+    } else if (e.type === "discardOpponent") {
+      discardRandomFromHand(opp, e.value | 0);
+    } else if (e.type === "damageIf") {
+      if (evalCondition(game, actorIndex, e)) {
+        opp.hp = Math.max(0, opp.hp - (e.value | 0));
+      }
+    } else if (e.type === "healIf") {
+      if (evalCondition(game, actorIndex, e)) {
+        self.hp = Math.min(MAX_HP, self.hp + (e.value | 0));
+      }
+    } else if (e.type === "capOpponentNextTurn") {
+      const cap = Math.max(1, Math.min(MAX_COST_PER_TURN, e.cap | 0));
+      opp.costCapOnNextTurn = cap;
     }
   }
 }
@@ -117,7 +172,7 @@ export function publicSnapshot(game, viewerIndex, cardById) {
       deckCount: self.deck.length,
       discardCount: self.discard.length,
       costPool: self.costPool,
-      maxCost: MAX_COST_PER_TURN,
+      maxCost: self.turnMaxCost ?? MAX_COST_PER_TURN,
     },
     opponent: {
       hp: opp.hp,

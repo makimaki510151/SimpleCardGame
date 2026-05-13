@@ -1,0 +1,16 @@
+{
+  "id": "blood_pact",
+  "name": "ブラッドパクト",
+  "cost": 2,
+  "body": [
+    { "t": "相手に ", "c": "muted" },
+    { "t": "6", "c": "damage" },
+    { "t": "。自分は ", "c": "muted" },
+    { "t": "4", "c": "heal" },
+    { "t": " 回復。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "damage", "value": 6 },
+    { "type": "heal", "value": 4 }
+  ]
+}

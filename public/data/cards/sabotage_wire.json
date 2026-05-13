@@ -1,0 +1,16 @@
+{
+  "id": "sabotage_wire",
+  "name": "サボタージュワイヤ",
+  "cost": 3,
+  "body": [
+    { "t": "相手に ", "c": "muted" },
+    { "t": "5", "c": "damage" },
+    { "t": "。次の相手ターンのコスト上限を ", "c": "muted" },
+    { "t": "3", "c": "cap" },
+    { "t": " に。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "damage", "value": 5 },
+    { "type": "capOpponentNextTurn", "cap": 3 }
+  ]
+}

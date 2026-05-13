@@ -11,11 +11,23 @@ let lobbyCatalogLoaded = false;
 let skywaySession = null;
 
 function assetBase() {
-  return window.__SCG_BASE__ || "/";
+  const baseHref = document.querySelector("base")?.href;
+  if (baseHref) {
+    return baseHref.endsWith("/") ? baseHref : `${baseHref}/`;
+  }
+  const p = window.__SCG_BASE__;
+  if (typeof p === "string" && p.length) {
+    return p.endsWith("/") ? p : `${p}/`;
+  }
+  return new URL("./", window.location.href).href;
 }
 
 function resolveUrl(rel) {
-  return new URL(rel, assetBase()).href;
+  try {
+    return new URL(rel, assetBase()).href;
+  } catch {
+    return rel;
+  }
 }
 
 /** 常に同一オリジンの SkyWay トークン API */
@@ -218,6 +230,9 @@ function onGameState(state) {
   $("#self-disc").textContent = String(state.you.discardCount);
   $("#turn-no").textContent = String(state.turnNumber);
   $("#cost-current").textContent = String(state.you.costPool);
+  $("#cost-max").textContent = String(
+    state.you.maxCost ?? state.you.costPool
+  );
   const yourTurn = state.turnIndex === state.youAre;
   const banner = $("#turn-banner");
   banner.textContent = yourTurn ? "あなたのターン" : "相手のターン";
@@ -265,6 +280,9 @@ async function fetchCatalog() {
         catalogById[c.id] = c;
       }
       initialDeckIds = data.initialDeck?.slice() || [];
+      if (window.SCG_cardBalance?.assertNoStrictDominance) {
+        window.SCG_cardBalance.assertNoStrictDominance(catalogById);
+      }
       return;
     }
   } catch {
@@ -291,6 +309,9 @@ async function fetchCatalog() {
     return r.json();
   });
   initialDeckIds = init.cardIds.slice();
+  if (window.SCG_cardBalance?.assertNoStrictDominance) {
+    window.SCG_cardBalance.assertNoStrictDominance(catalogById);
+  }
 }
 
 function renderDeckBuilder() {
