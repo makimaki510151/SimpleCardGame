@@ -85,9 +85,17 @@
         <div class="panel">
           <button type="button" class="btn back" id="btn-leave-lobby">← 退出</button>
           <h2>ルーム</h2>
-          <p class="room-code-line">
-            コード: <span id="lobby-code" class="mono">------</span>
-          </p>
+          <div class="room-code-row">
+            <span class="room-code-label">ルームID</span>
+            <span id="lobby-code" class="mono room-code-value">------</span>
+            <button
+              type="button"
+              class="btn ghost room-code-copy"
+              id="btn-copy-room-code"
+            >
+              コピー
+            </button>
+          </div>
           <ul id="lobby-players" class="lobby-list"></ul>
           <div class="lobby-deck-row">
             <label for="select-lobby-deck">送信するデッキ</label>
@@ -202,7 +210,7 @@
                   <span class="duel-hand-lane-label">相手の手札</span>
                   <div
                     id="opp-hand-cards"
-                    class="duel-hand-strip"
+                    class="duel-hand-strip duel-hand-scroll duel-hand-scroll--opp"
                     aria-label="相手の手札"
                   ></div>
                 </div>
@@ -241,7 +249,10 @@
                   <span class="duel-hand-mat-player">あなた</span>
                   <span class="duel-hand-lane-label">手札</span>
                 </div>
-                <div id="hand" class="hand duel-hand-self"></div>
+                <div
+                  id="hand"
+                  class="hand duel-hand-self duel-hand-scroll duel-hand-scroll--self"
+                ></div>
               </div>
             </div>
             <footer class="duel-field-foot">

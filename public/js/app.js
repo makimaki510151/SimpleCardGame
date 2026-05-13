@@ -757,6 +757,34 @@ function wireUi() {
     showScreen("screen-online-menu");
   });
 
+  $("#btn-copy-room-code")?.addEventListener("click", async () => {
+    const el = $("#lobby-code");
+    const code = el?.textContent?.trim().replace(/\s+/g, "");
+    if (!code || code === "------") {
+      toast("コピーできるルームIDがありません");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(code);
+      toast("ルームIDをコピーしました");
+    } catch {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = code;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+        toast("ルームIDをコピーしました");
+      } catch {
+        toast("コピーに失敗しました");
+      }
+    }
+  });
+
   $("#btn-use-saved-deck").addEventListener("click", () => {
     const sel = $("#select-lobby-deck");
     if (sel?.value === "__initial__") {
