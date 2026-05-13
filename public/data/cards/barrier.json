@@ -3,9 +3,9 @@
   "name": "バリア",
   "cost": 3,
   "body": [
-    { "t": "自分のHPを ", "c": "muted" },
+    { "t": "自身回復", "c": "muted" },
     { "t": "9", "c": "heal" },
-    { "t": " 回復。", "c": "muted" }
+    { "t": "。", "c": "muted" }
   ],
   "effects": [{ "type": "heal", "value": 9 }]
 }

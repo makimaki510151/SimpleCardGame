@@ -3,7 +3,7 @@ const MAX_COST = 5;
 /**
  * 効果を数値ベクトルに畳み込み（完全上位互換判定用）。
  * 条件付きダメージ／回復は保守的に「常に成立」とみなしフル value を加算する。
- * attackIfFirstLockerResolve は交戦タイミング依存のため集計に含めず、
+ * attackIfFirstLockerResolve は先行確定時にのみ交戦力へ反映するため集計に含めず、
  * assertNoStrictDominance ではその効果を持つカードをペア検査から除外する。
  */
 function aggregateForDominance(card) {

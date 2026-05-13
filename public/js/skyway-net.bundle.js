@@ -55602,7 +55602,7 @@ function createPlayerState(deckIds) {
     roundLocked: false,
     /** このプレイヤーが次にカードを使おうとしたとき、回数分プレイが無効化される */
     negateIncomingPlays: 0,
-    /** 先に確定した場合のみ交戦解決時に attackStock へ加算（カード効果） */
+    /** 先行確定時に attackStock へ加算する分（カード使用時に蓄積） */
     pendingFirstLockAttack: 0
   };
 }
@@ -55690,28 +55690,29 @@ function describeEffectLine(e2) {
   const v = e2.value | 0;
   switch (e2.type) {
     case "damage":
-      return `\u4EA4\u6226\u529B+${v}`;
+      return `\u4EA4\u6226\u529B${v}`;
     case "damageIf":
-      return `\u4EA4\u6226\u529B+${v}\uFF08\u6761\u4EF6\uFF09`;
+      return `\u4EA4\u6226\u529B${v}\uFF08\u6761\u4EF6\uFF09`;
     case "heal":
-      return `HP+${v}`;
+      return `\u81EA\u8EAB\u56DE\u5FA9${v}`;
     case "draw":
-      return `\u30C9\u30ED\u30FC${v}`;
+      return `\u30AB\u30FC\u30C9\u30C9\u30ED\u30FC${v}`;
     case "discardSelf":
-      return `\u81EA\u5206\u306E\u624B\u672D\u3092${v}\u679A\u30E9\u30F3\u30C0\u30E0\u3067\u6368\u3066\u308B`;
+      return `\u81EA\u8EAB\u624B\u672D\u30E9\u30F3\u30C0\u30E0\u5EC3\u68C4${v}`;
     case "discardSelfChoose":
-      return `\u81EA\u5206\u306E\u624B\u672D\u3092${v}\u679A\u9078\u3093\u3067\u6368\u3066\u308B`;
+      return `\u81EA\u8EAB\u624B\u672D\u9078\u629E\u5EC3\u68C4${v}`;
     case "discardOpponent":
+      return `\u76F8\u624B\u624B\u672D\u30E9\u30F3\u30C0\u30E0\u5EC3\u68C4${v}`;
     case "negateOpponentNextPlay":
-      return `\u76F8\u624B\u306E\u6B21\u306E\u30D7\u30EC\u30A4\u3092${Math.max(1, v || 1)}\u56DE\u7121\u52B9\u5316`;
+      return `\u76F8\u624B\u6B21\u30D7\u30EC\u30A4\u7121\u52B9${Math.max(1, v || 1)}`;
     case "healIf":
-      return `HP+${v}\uFF08\u6761\u4EF6\uFF09`;
+      return `\u81EA\u8EAB\u56DE\u5FA9${v}\uFF08\u6761\u4EF6\uFF09`;
     case "capOpponentNextTurn":
-      return `\u6B21\u30E9\u30A6\u30F3\u30C9\u76F8\u624B\u306E\u30B3\u30B9\u30C8\u4E0A\u9650${e2.cap | 0}`;
+      return `\u6B21\u30BF\u30FC\u30F3\u76F8\u624B\u30B3\u30B9\u30C8\u4E0A\u9650${e2.cap | 0}`;
     case "damageSelf":
-      return `\u81EA\u5206\u306EHP-${v}`;
+      return `\u81EA\u8EAB\u30C0\u30E1\u30FC\u30B8${v}`;
     case "attackIfFirstLockerResolve":
-      return `\u5148\u78BA\u5B9A\u306A\u3089\u4EA4\u6226\u89E3\u6C7A\u6642\u306B\u4EA4\u6226\u529B+${v}`;
+      return `\u5148\u884C\u78BA\u5B9A\u6642\u4EA4\u6226\u529B${v}`;
     default:
       return e2.type || "?";
   }
@@ -55849,6 +55850,18 @@ function lockRound(game, playerIndex) {
       null,
       "lock"
     );
+    const delayed = p.pendingFirstLockAttack | 0;
+    if (delayed > 0) {
+      p.attackStock += delayed;
+      p.pendingFirstLockAttack = 0;
+      pushLog(
+        game,
+        playerIndex,
+        `\u5148\u884C\u78BA\u5B9A \u2014 \u4EA4\u6226\u529B+${delayed}\uFF08\u30AB\u30FC\u30C9\u52B9\u679C\uFF09`,
+        null,
+        "lock"
+      );
+    }
   } else {
     pushLog(game, playerIndex, "\u30E9\u30A6\u30F3\u30C9\u78BA\u5B9A", null, "lock");
   }
@@ -55858,20 +55871,6 @@ function bothLocked(game) {
   return game.players[0].roundLocked && game.players[1].roundLocked;
 }
 function resolveRound(game, cardById) {
-  if (game.firstLocker != null) {
-    const pl = game.players[game.firstLocker];
-    const delayed = pl.pendingFirstLockAttack | 0;
-    if (delayed > 0) {
-      pl.attackStock += delayed;
-      pushLog(
-        game,
-        game.firstLocker,
-        `\u4EA4\u6226\u76F4\u524D \u2014 \u5148\u78BA\u5B9A\u3067\u4EA4\u6226\u529B+${delayed}\uFF08\u9045\u5EF6\u52B9\u679C\uFF09`,
-        null,
-        "clash"
-      );
-    }
-  }
   const a0 = game.players[0].attackStock;
   const a1 = game.players[1].attackStock;
   if (a0 > a1) {
@@ -56076,67 +56075,90 @@ function createSkyWayP2P({
     startRound(game);
     emitGameBoth();
   }
-  function handleGuestAction(msg) {
+  const actionQueue = [];
+  function scheduleActionFlush() {
+    if (actionQueue._flushPlanned) return;
+    actionQueue._flushPlanned = true;
+    queueMicrotask(() => {
+      actionQueue._flushPlanned = false;
+      flushActionQueue();
+    });
+  }
+  function enqueueAction(slot, msg) {
     if (!game) return;
+    const clientTs = typeof msg.clientTs === "number" && !Number.isNaN(msg.clientTs) ? msg.clientTs : Date.now();
     if (msg.t === "playCard") {
-      const res = playCard(game, guestSlot, msg.handIndex | 0, cardById, {
-        discardPicks: normalizeDiscardPicks(msg.discardPicks)
+      actionQueue.push({
+        slot,
+        clientTs,
+        t: "playCard",
+        handIndex: msg.handIndex | 0,
+        discardPicks: msg.discardPicks
       });
-      if (!res.ok) {
-        broadcastDown({ t: "actionError", message: res.reason });
-        return;
-      }
-      emitGameBoth();
+    } else if (msg.t === "endTurn") {
+      actionQueue.push({ slot, clientTs, t: "endTurn" });
+    } else {
       return;
     }
-    if (msg.t === "endTurn") {
-      const lockRes = lockRound(game, guestSlot);
-      if (!lockRes.ok) {
-        broadcastDown({ t: "actionError", message: lockRes.reason });
-        return;
-      }
-      emitGameBoth();
-      if (bothLocked(game)) {
-        const clash = resolveRound(game, cardById);
-        emitGameBoth();
-        if (clash.winnerIndex !== void 0) {
-          broadcastDown({ t: "gameOver", winnerSlot: clash.winnerIndex });
-          game = null;
-          onGameOver({ winnerSlot: clash.winnerIndex });
-        }
-      }
+    scheduleActionFlush();
+  }
+  function reportActionError(slot, reason) {
+    if (slot === hostSlot) {
+      onActionError({ message: reason });
+    } else {
+      broadcastDown({ t: "actionError", message: reason });
     }
   }
-  function handleHostLocalAction(msg) {
-    if (!game) return;
-    if (msg.t === "playCard") {
-      const res = playCard(game, hostSlot, msg.handIndex | 0, cardById, {
-        discardPicks: normalizeDiscardPicks(msg.discardPicks)
-      });
-      if (!res.ok) {
-        onActionError({ message: res.reason });
-        return;
-      }
-      emitGameBoth();
-      return;
-    }
-    if (msg.t === "endTurn") {
-      const lockRes = lockRound(game, hostSlot);
-      if (!lockRes.ok) {
-        onActionError({ message: lockRes.reason });
-        return;
-      }
-      emitGameBoth();
-      if (bothLocked(game)) {
-        const clash = resolveRound(game, cardById);
-        emitGameBoth();
-        if (clash.winnerIndex !== void 0) {
-          broadcastDown({ t: "gameOver", winnerSlot: clash.winnerIndex });
-          game = null;
-          onGameOver({ winnerSlot: clash.winnerIndex });
+  function flushActionQueue() {
+    if (!game || actionQueue.length === 0) return;
+    actionQueue.sort(
+      (a, b) => a.clientTs - b.clientTs || a.slot - b.slot
+    );
+    const batch = actionQueue.splice(0, actionQueue.length);
+    let emitted = false;
+    for (const item of batch) {
+      if (!game) break;
+      if (item.t === "playCard") {
+        const res = playCard(
+          game,
+          item.slot,
+          item.handIndex | 0,
+          cardById,
+          { discardPicks: normalizeDiscardPicks(item.discardPicks) }
+        );
+        if (!res.ok) {
+          reportActionError(item.slot, res.reason);
+        } else {
+          emitted = true;
+        }
+      } else if (item.t === "endTurn") {
+        const lockRes = lockRound(game, item.slot);
+        if (!lockRes.ok) {
+          reportActionError(item.slot, lockRes.reason);
+        } else {
+          emitted = true;
+          if (bothLocked(game)) {
+            const clash = resolveRound(game, cardById);
+            if (clash.winnerIndex !== void 0) {
+              emitGameBoth();
+              broadcastDown({
+                t: "gameOver",
+                winnerSlot: clash.winnerIndex
+              });
+              game = null;
+              onGameOver({ winnerSlot: clash.winnerIndex });
+            }
+          }
         }
       }
     }
+    if (emitted && game) emitGameBoth();
+  }
+  function handleGuestAction(msg) {
+    enqueueAction(guestSlot, msg);
+  }
+  function handleHostLocalAction(msg) {
+    enqueueAction(hostSlot, msg);
   }
   function handleGuestDownlink(raw) {
     let msg;
@@ -56285,7 +56307,11 @@ function createSkyWayP2P({
       }
     },
     playCard(handIndex, discardPicks) {
-      const payload = { t: "playCard", handIndex };
+      const payload = {
+        t: "playCard",
+        handIndex,
+        clientTs: Date.now()
+      };
       if (Array.isArray(discardPicks) && discardPicks.length > 0) {
         payload.discardPicks = discardPicks.map((x) => x | 0);
       }
@@ -56296,10 +56322,11 @@ function createSkyWayP2P({
       }
     },
     endTurn() {
+      const payload = { t: "endTurn", clientTs: Date.now() };
       if (role === "host") {
-        handleHostLocalAction({ t: "endTurn" });
+        handleHostLocalAction(payload);
       } else if (uplinkStream) {
-        uplinkStream.write(JSON.stringify({ t: "endTurn" }));
+        uplinkStream.write(JSON.stringify(payload));
       }
     },
     refreshLobbyCatalog() {

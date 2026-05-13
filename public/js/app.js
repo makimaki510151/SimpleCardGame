@@ -557,7 +557,7 @@ function onGameState(state) {
   if (sa) {
     sa.title =
       pendAtk > 0
-        ? `交戦解決時、先に確定していればさらに +${pendAtk}（遅延効果）`
+        ? `先行確定時に交戦力+${pendAtk}（確定した時点で加算）`
         : "";
   }
   if ((state.opponent.attackStock | 0) > lastOppAttack) {
@@ -882,6 +882,15 @@ function renderDeckBuilder() {
       wrap.className = "deck-strip-item";
       const face = makeCardFace(def, { wide: true });
       face.classList.add("deck-strip-card");
+      face.title =
+        "−/+で枚数調整 · Ctrl+クリックで拡大（Mac は ⌘）";
+      face.addEventListener("click", (ev) => {
+        if (ev.ctrlKey || ev.metaKey) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          openCardZoomPreview(cid);
+        }
+      });
       const badge = document.createElement("span");
       badge.className = "deck-strip-count";
       badge.textContent = `×${n}`;
@@ -940,7 +949,15 @@ function renderDeckBuilder() {
   for (const id of ids) {
     const card = catalogById[id];
     const face = makeCardFace(card, { wide: true });
-    face.addEventListener("click", () => {
+    face.title =
+      "クリックでデッキに追加 · Ctrl+クリックで拡大（Mac は ⌘）";
+    face.addEventListener("click", (ev) => {
+      if (ev.ctrlKey || ev.metaKey) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openCardZoomPreview(id);
+        return;
+      }
       const counts = {};
       for (const x of currentDeck) counts[x] = (counts[x] || 0) + 1;
       if ((counts[id] || 0) >= 3) {

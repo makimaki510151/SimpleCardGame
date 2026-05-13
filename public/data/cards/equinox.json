@@ -3,11 +3,11 @@
   "name": "イクイノックス",
   "cost": 3,
   "body": [
-    { "t": "相手に ", "c": "muted" },
+    { "t": "交戦力", "c": "muted" },
     { "t": "6", "c": "damage" },
-    { "t": "。自分は ", "c": "muted" },
+    { "t": "，自身回復", "c": "muted" },
     { "t": "3", "c": "heal" },
-    { "t": " 回復。", "c": "muted" }
+    { "t": "。", "c": "muted" }
   ],
   "effects": [
     { "type": "damage", "value": 6 },

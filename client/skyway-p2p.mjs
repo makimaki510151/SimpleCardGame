@@ -147,68 +147,100 @@ export function createSkyWayP2P({
     emitGameBoth();
   }
 
-  function handleGuestAction(msg) {
+  /** 同時操作をクライアント時刻順に整列してから適用（ログと結果の整合） */
+  const actionQueue = [];
+
+  function scheduleActionFlush() {
+    if (actionQueue._flushPlanned) return;
+    actionQueue._flushPlanned = true;
+    queueMicrotask(() => {
+      actionQueue._flushPlanned = false;
+      flushActionQueue();
+    });
+  }
+
+  function enqueueAction(slot, msg) {
     if (!game) return;
+    const clientTs =
+      typeof msg.clientTs === "number" && !Number.isNaN(msg.clientTs)
+        ? msg.clientTs
+        : Date.now();
     if (msg.t === "playCard") {
-      const res = Engine.playCard(game, guestSlot, msg.handIndex | 0, cardById, {
-        discardPicks: normalizeDiscardPicks(msg.discardPicks),
+      actionQueue.push({
+        slot,
+        clientTs,
+        t: "playCard",
+        handIndex: msg.handIndex | 0,
+        discardPicks: msg.discardPicks,
       });
-      if (!res.ok) {
-        broadcastDown({ t: "actionError", message: res.reason });
-        return;
-      }
-      emitGameBoth();
+    } else if (msg.t === "endTurn") {
+      actionQueue.push({ slot, clientTs, t: "endTurn" });
+    } else {
       return;
     }
-    if (msg.t === "endTurn") {
-      const lockRes = Engine.lockRound(game, guestSlot);
-      if (!lockRes.ok) {
-        broadcastDown({ t: "actionError", message: lockRes.reason });
-        return;
-      }
-      emitGameBoth();
-      if (Engine.bothLocked(game)) {
-        const clash = Engine.resolveRound(game, cardById);
-        emitGameBoth();
-        if (clash.winnerIndex !== undefined) {
-          broadcastDown({ t: "gameOver", winnerSlot: clash.winnerIndex });
-          game = null;
-          onGameOver({ winnerSlot: clash.winnerIndex });
-        }
-      }
+    scheduleActionFlush();
+  }
+
+  function reportActionError(slot, reason) {
+    if (slot === hostSlot) {
+      onActionError({ message: reason });
+    } else {
+      broadcastDown({ t: "actionError", message: reason });
     }
   }
 
-  function handleHostLocalAction(msg) {
-    if (!game) return;
-    if (msg.t === "playCard") {
-      const res = Engine.playCard(game, hostSlot, msg.handIndex | 0, cardById, {
-        discardPicks: normalizeDiscardPicks(msg.discardPicks),
-      });
-      if (!res.ok) {
-        onActionError({ message: res.reason });
-        return;
-      }
-      emitGameBoth();
-      return;
-    }
-    if (msg.t === "endTurn") {
-      const lockRes = Engine.lockRound(game, hostSlot);
-      if (!lockRes.ok) {
-        onActionError({ message: lockRes.reason });
-        return;
-      }
-      emitGameBoth();
-      if (Engine.bothLocked(game)) {
-        const clash = Engine.resolveRound(game, cardById);
-        emitGameBoth();
-        if (clash.winnerIndex !== undefined) {
-          broadcastDown({ t: "gameOver", winnerSlot: clash.winnerIndex });
-          game = null;
-          onGameOver({ winnerSlot: clash.winnerIndex });
+  function flushActionQueue() {
+    if (!game || actionQueue.length === 0) return;
+    actionQueue.sort(
+      (a, b) => a.clientTs - b.clientTs || a.slot - b.slot
+    );
+    const batch = actionQueue.splice(0, actionQueue.length);
+    let emitted = false;
+    for (const item of batch) {
+      if (!game) break;
+      if (item.t === "playCard") {
+        const res = Engine.playCard(
+          game,
+          item.slot,
+          item.handIndex | 0,
+          cardById,
+          { discardPicks: normalizeDiscardPicks(item.discardPicks) }
+        );
+        if (!res.ok) {
+          reportActionError(item.slot, res.reason);
+        } else {
+          emitted = true;
+        }
+      } else if (item.t === "endTurn") {
+        const lockRes = Engine.lockRound(game, item.slot);
+        if (!lockRes.ok) {
+          reportActionError(item.slot, lockRes.reason);
+        } else {
+          emitted = true;
+          if (Engine.bothLocked(game)) {
+            const clash = Engine.resolveRound(game, cardById);
+            if (clash.winnerIndex !== undefined) {
+              emitGameBoth();
+              broadcastDown({
+                t: "gameOver",
+                winnerSlot: clash.winnerIndex,
+              });
+              game = null;
+              onGameOver({ winnerSlot: clash.winnerIndex });
+            }
+          }
         }
       }
     }
+    if (emitted && game) emitGameBoth();
+  }
+
+  function handleGuestAction(msg) {
+    enqueueAction(guestSlot, msg);
+  }
+
+  function handleHostLocalAction(msg) {
+    enqueueAction(hostSlot, msg);
   }
 
   function handleGuestDownlink(raw) {
@@ -371,7 +403,11 @@ export function createSkyWayP2P({
       }
     },
     playCard(handIndex, discardPicks) {
-      const payload = { t: "playCard", handIndex };
+      const payload = {
+        t: "playCard",
+        handIndex,
+        clientTs: Date.now(),
+      };
       if (Array.isArray(discardPicks) && discardPicks.length > 0) {
         payload.discardPicks = discardPicks.map((x) => x | 0);
       }
@@ -382,10 +418,11 @@ export function createSkyWayP2P({
       }
     },
     endTurn() {
+      const payload = { t: "endTurn", clientTs: Date.now() };
       if (role === "host") {
-        handleHostLocalAction({ t: "endTurn" });
+        handleHostLocalAction(payload);
       } else if (uplinkStream) {
-        uplinkStream.write(JSON.stringify({ t: "endTurn" }));
+        uplinkStream.write(JSON.stringify(payload));
       }
     },
     refreshLobbyCatalog() {

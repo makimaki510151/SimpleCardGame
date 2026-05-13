@@ -3,11 +3,11 @@
   "name": "チップ",
   "cost": 2,
   "body": [
-    { "t": "相手に ", "c": "muted" },
+    { "t": "交戦力", "c": "muted" },
     { "t": "9", "c": "damage" },
-    { "t": " ダメージ。カードを ", "c": "muted" },
+    { "t": "，カードドロー", "c": "muted" },
     { "t": "1", "c": "draw" },
-    { "t": " 引く。", "c": "muted" }
+    { "t": "。", "c": "muted" }
   ],
   "effects": [
     { "type": "damage", "value": 9 },

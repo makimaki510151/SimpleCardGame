@@ -3,11 +3,12 @@
   "name": "締めの一針",
   "cost": 1,
   "body": [
-    { "t": "次ラウンド、相手のコスト上限を ", "c": "muted" },
+    { "t": "次ターン相手コスト上限", "c": "muted" },
     { "t": "3", "c": "cap" },
-    { "t": " に。自分の手札を ", "c": "muted" },
+    { "t": "に。", "c": "muted" },
+    { "t": "，自身手札ランダム廃棄", "c": "muted" },
     { "t": "1", "c": "discard" },
-    { "t": " 枚ランダムで捨てる。", "c": "muted" }
+    { "t": "。", "c": "muted" }
   ],
   "effects": [
     { "type": "capOpponentNextTurn", "cap": 3 },

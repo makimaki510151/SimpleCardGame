@@ -3,11 +3,11 @@
   "name": "底力ガード",
   "cost": 0,
   "body": [
-    { "t": "自分のHPが ", "c": "muted" },
+    { "t": "自身HPが ", "c": "muted" },
     { "t": "18", "c": "condition" },
-    { "t": " 以下のときだけ ", "c": "muted" },
+    { "t": " 以下のときのみ自身回復", "c": "muted" },
     { "t": "1", "c": "heal" },
-    { "t": " 回復。", "c": "muted" }
+    { "t": "。", "c": "muted" }
   ],
   "effects": [
     {

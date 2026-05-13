@@ -47,7 +47,7 @@ export function createPlayerState(deckIds) {
     roundLocked: false,
     /** このプレイヤーが次にカードを使おうとしたとき、回数分プレイが無効化される */
     negateIncomingPlays: 0,
-    /** 先に確定した場合のみ交戦解決時に attackStock へ加算（カード効果） */
+    /** 先行確定時に attackStock へ加算する分（カード使用時に蓄積） */
     pendingFirstLockAttack: 0,
   };
 }
@@ -150,28 +150,29 @@ function describeEffectLine(e) {
   const v = e.value | 0;
   switch (e.type) {
     case "damage":
-      return `交戦力+${v}`;
+      return `交戦力${v}`;
     case "damageIf":
-      return `交戦力+${v}（条件）`;
+      return `交戦力${v}（条件）`;
     case "heal":
-      return `HP+${v}`;
+      return `自身回復${v}`;
     case "draw":
-      return `ドロー${v}`;
+      return `カードドロー${v}`;
     case "discardSelf":
-      return `自分の手札を${v}枚ランダムで捨てる`;
+      return `自身手札ランダム廃棄${v}`;
     case "discardSelfChoose":
-      return `自分の手札を${v}枚選んで捨てる`;
+      return `自身手札選択廃棄${v}`;
     case "discardOpponent":
+      return `相手手札ランダム廃棄${v}`;
     case "negateOpponentNextPlay":
-      return `相手の次のプレイを${Math.max(1, v || 1)}回無効化`;
+      return `相手次プレイ無効${Math.max(1, v || 1)}`;
     case "healIf":
-      return `HP+${v}（条件）`;
+      return `自身回復${v}（条件）`;
     case "capOpponentNextTurn":
-      return `次ラウンド相手のコスト上限${e.cap | 0}`;
+      return `次ターン相手コスト上限${e.cap | 0}`;
     case "damageSelf":
-      return `自分のHP-${v}`;
+      return `自身ダメージ${v}`;
     case "attackIfFirstLockerResolve":
-      return `先確定なら交戦解決時に交戦力+${v}`;
+      return `先行確定時交戦力${v}`;
     default:
       return e.type || "?";
   }
@@ -330,6 +331,18 @@ export function lockRound(game, playerIndex) {
       null,
       "lock"
     );
+    const delayed = p.pendingFirstLockAttack | 0;
+    if (delayed > 0) {
+      p.attackStock += delayed;
+      p.pendingFirstLockAttack = 0;
+      pushLog(
+        game,
+        playerIndex,
+        `先行確定 — 交戦力+${delayed}（カード効果）`,
+        null,
+        "lock"
+      );
+    }
   } else {
     pushLog(game, playerIndex, "ラウンド確定", null, "lock");
   }
@@ -344,21 +357,6 @@ export function bothLocked(game) {
  * 交戦解決 → 手札全捨て → 次ラウンド
  */
 export function resolveRound(game, cardById) {
-  if (game.firstLocker != null) {
-    const pl = game.players[game.firstLocker];
-    const delayed = pl.pendingFirstLockAttack | 0;
-    if (delayed > 0) {
-      pl.attackStock += delayed;
-      pushLog(
-        game,
-        game.firstLocker,
-        `交戦直前 — 先確定で交戦力+${delayed}（遅延効果）`,
-        null,
-        "clash"
-      );
-    }
-  }
-
   const a0 = game.players[0].attackStock;
   const a1 = game.players[1].attackStock;
 

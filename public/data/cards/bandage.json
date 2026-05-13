@@ -3,9 +3,9 @@
   "name": "包帯",
   "cost": 1,
   "body": [
-    { "t": "自分のHPを ", "c": "muted" },
+    { "t": "自身回復", "c": "muted" },
     { "t": "4", "c": "heal" },
-    { "t": " 回復。", "c": "muted" }
+    { "t": "。", "c": "muted" }
   ],
   "effects": [{ "type": "heal", "value": 4 }]
 }

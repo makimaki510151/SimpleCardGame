@@ -3,11 +3,11 @@
   "name": "セカンドウィンド",
   "cost": 3,
   "body": [
-    { "t": "自分のHPを ", "c": "muted" },
+    { "t": "自身回復", "c": "muted" },
     { "t": "8", "c": "heal" },
-    { "t": " 回復。カードを ", "c": "muted" },
+    { "t": "，カードドロー", "c": "muted" },
     { "t": "1", "c": "draw" },
-    { "t": " 引く。", "c": "muted" }
+    { "t": "。", "c": "muted" }
   ],
   "effects": [
     { "type": "heal", "value": 8 },

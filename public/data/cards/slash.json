@@ -3,13 +3,13 @@
   "name": "斬り",
   "cost": 3,
   "body": [
-    { "t": "交戦力 ", "c": "muted" },
+    { "t": "交戦力", "c": "muted" },
     { "t": "12", "c": "damage" },
-    { "t": "。自分のHP ", "c": "muted" },
+    { "t": "，自身回復", "c": "muted" },
     { "t": "1", "c": "heal" },
-    { "t": "。カードを ", "c": "muted" },
+    { "t": "，カードドロー", "c": "muted" },
     { "t": "1", "c": "draw" },
-    { "t": " 引く。", "c": "muted" }
+    { "t": "。", "c": "muted" }
   ],
   "effects": [
     { "type": "damage", "value": 12 },
