@@ -1,7 +1,7 @@
 {
   "id": "split_read",
   "name": "スプリットリード",
-  "cost": 5,
+  "cost": 4,
   "body": [
     { "t": "交戦力 ", "c": "muted" },
     { "t": "4", "c": "damage" },

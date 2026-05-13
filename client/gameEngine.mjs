@@ -13,7 +13,7 @@ function shuffle(array) {
 
 export const MAX_HP = 50;
 export const MAX_COST_PER_TURN = 5;
-export const DRAW_PER_TURN = 4;
+export const DRAW_PER_TURN = 5;
 /** 先にラウンド確定したプレイヤーに付与される交戦力ボーナス（蓄積に加算） */
 export const FIRST_LOCK_ATTACK_BONUS = 2;
 

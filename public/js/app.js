@@ -169,7 +169,19 @@ function renderCardBody(container, card) {
 
   let bonusStart = condIdx;
   while (bonusStart > 0 && parts[bonusStart - 1].c === "muted") {
-    bonusStart -= 1;
+    const ixMuted = bonusStart - 1;
+    if (ixMuted > 0) {
+      const before = parts[ixMuted - 1].c;
+      if (
+        before === "draw" ||
+        before === "heal" ||
+        before === "damage" ||
+        before === "discard"
+      ) {
+        break;
+      }
+    }
+    bonusStart = ixMuted;
   }
 
   for (let i = 0; i < bonusStart; i++) {

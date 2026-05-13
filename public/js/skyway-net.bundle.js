@@ -55572,7 +55572,7 @@ function shuffle(array) {
 }
 var MAX_HP = 50;
 var MAX_COST_PER_TURN = 5;
-var DRAW_PER_TURN = 4;
+var DRAW_PER_TURN = 5;
 var FIRST_LOCK_ATTACK_BONUS = 2;
 var MAX_LOG = 40;
 function pushLog(game, slot, text, cardId, kind) {
