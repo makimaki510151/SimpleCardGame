@@ -230,6 +230,29 @@ h3 {
   min-height: 210px;
 }
 
+.card-face.mini {
+  width: 86px;
+  min-height: 112px;
+  padding: 0.32rem 0.35rem 0.4rem;
+  font-size: 0.68rem;
+}
+
+.card-face.mini .card-cost {
+  font-size: 0.78rem;
+  top: 0.25rem;
+  right: 0.3rem;
+}
+
+.card-face.mini .card-title {
+  font-size: 0.68rem;
+  margin-top: 0.15rem;
+}
+
+.card-face.mini .card-body {
+  font-size: 0.58rem;
+  line-height: 1.25;
+}
+
 .card-cost {
   position: absolute;
   top: 0.45rem;
@@ -405,6 +428,95 @@ h3 {
 }
 
 /* 対戦 */
+.battle-log {
+  max-height: 9.5rem;
+  overflow-y: auto;
+  font-size: 0.8rem;
+  line-height: 1.38;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #0d1117;
+}
+
+.battle-log .log-row {
+  padding: 0.15rem 0;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.45);
+}
+
+.battle-log .log-row:last-child {
+  border-bottom: none;
+}
+
+.battle-log .log-row.flash {
+  animation: logFlash 0.55s ease-out;
+}
+
+.battle-log .log-sys {
+  color: var(--muted);
+}
+
+.battle-log .log-you {
+  color: #79c0ff;
+}
+
+.battle-log .log-opp {
+  color: #ff9c94;
+}
+
+.battle-log .log-clash {
+  color: #d2a8ff;
+  font-weight: 700;
+}
+
+.battle-log .log-neg {
+  color: #ffa657;
+}
+
+@keyframes logFlash {
+  from {
+    background: rgba(88, 166, 255, 0.22);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.opp-hand-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  max-height: 9rem;
+  overflow-y: auto;
+}
+
+.lock-badge {
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.38rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  background: rgba(163, 113, 247, 0.22);
+  color: #d2a8ff;
+}
+
+.attack-stock {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #ffb86c;
+}
+
+.attack-stock.pulse {
+  animation: atkPulse 0.45s ease-out;
+}
+
+@keyframes atkPulse {
+  35% {
+    transform: scale(1.1);
+    color: #fff;
+  }
+}
+
 .game-layout {
   display: flex;
   flex-direction: column;

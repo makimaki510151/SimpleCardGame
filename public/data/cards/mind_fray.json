@@ -5,12 +5,12 @@
   "body": [
     { "t": "カードを ", "c": "muted" },
     { "t": "2", "c": "draw" },
-    { "t": " 引く。相手の手札を ", "c": "muted" },
-    { "t": "1", "c": "discard" },
-    { "t": " 枚ランダムで捨てさせる。", "c": "muted" }
+    { "t": " 引く。相手が使う ", "c": "muted" },
+    { "t": "次の1回", "c": "damage" },
+    { "t": " のカードを無効化する。", "c": "muted" }
   ],
   "effects": [
     { "type": "draw", "value": 2 },
-    { "type": "discardOpponent", "value": 1 }
+    { "type": "negateOpponentNextPlay", "value": 1 }
   ]
 }

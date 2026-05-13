@@ -132,10 +132,12 @@ export function createSkyWayP2P({
         Engine.createPlayerState(lobby.hostDeck),
         Engine.createPlayerState(lobby.guestDeck),
       ],
-      turnIndex: Math.floor(Math.random() * 2),
-      turnNumber: 1,
+      roundNumber: 1,
+      firstLocker: null,
+      log: [],
+      _logSeq: 0,
     };
-    Engine.startTurn(game, game.turnIndex);
+    Engine.startRound(game);
     emitGameBoth();
   }
 
@@ -148,20 +150,24 @@ export function createSkyWayP2P({
         return;
       }
       emitGameBoth();
-      if (res.winnerIndex !== undefined) {
-        broadcastDown({ t: "gameOver", winnerSlot: res.winnerIndex });
-        game = null;
-        onGameOver({ winnerSlot: res.winnerIndex });
-      }
       return;
     }
     if (msg.t === "endTurn") {
-      if (game.turnIndex !== guestSlot) {
-        broadcastDown({ t: "actionError", message: "あなたのターンではありません。" });
+      const lockRes = Engine.lockRound(game, guestSlot);
+      if (!lockRes.ok) {
+        broadcastDown({ t: "actionError", message: lockRes.reason });
         return;
       }
-      Engine.endTurn(game);
       emitGameBoth();
+      if (Engine.bothLocked(game)) {
+        const clash = Engine.resolveRound(game, cardById);
+        emitGameBoth();
+        if (clash.winnerIndex !== undefined) {
+          broadcastDown({ t: "gameOver", winnerSlot: clash.winnerIndex });
+          game = null;
+          onGameOver({ winnerSlot: clash.winnerIndex });
+        }
+      }
     }
   }
 
@@ -174,20 +180,24 @@ export function createSkyWayP2P({
         return;
       }
       emitGameBoth();
-      if (res.winnerIndex !== undefined) {
-        broadcastDown({ t: "gameOver", winnerSlot: res.winnerIndex });
-        game = null;
-        onGameOver({ winnerSlot: res.winnerIndex });
-      }
       return;
     }
     if (msg.t === "endTurn") {
-      if (game.turnIndex !== hostSlot) {
-        onActionError({ message: "あなたのターンではありません。" });
+      const lockRes = Engine.lockRound(game, hostSlot);
+      if (!lockRes.ok) {
+        onActionError({ message: lockRes.reason });
         return;
       }
-      Engine.endTurn(game);
       emitGameBoth();
+      if (Engine.bothLocked(game)) {
+        const clash = Engine.resolveRound(game, cardById);
+        emitGameBoth();
+        if (clash.winnerIndex !== undefined) {
+          broadcastDown({ t: "gameOver", winnerSlot: clash.winnerIndex });
+          game = null;
+          onGameOver({ winnerSlot: clash.winnerIndex });
+        }
+      }
     }
   }
 

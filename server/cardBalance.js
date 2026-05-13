@@ -30,7 +30,8 @@ function aggregateForDominance(card) {
         selfDisc += v;
         break;
       case "discardOpponent":
-        oppDisc += v;
+      case "negateOpponentNextPlay":
+        oppDisc += Math.max(1, v || 1);
         break;
       case "damageIf":
         dmg += v;

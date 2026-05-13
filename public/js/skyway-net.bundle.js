@@ -55573,6 +55573,21 @@ function shuffle(array) {
 var MAX_HP = 100;
 var MAX_COST_PER_TURN = 5;
 var DRAW_PER_TURN = 5;
+var FIRST_LOCK_ATTACK_BONUS = 2;
+var MAX_LOG = 40;
+function pushLog(game, slot, text, cardId, kind) {
+  if (!game.log) game.log = [];
+  const entry = {
+    seq: game._logSeq = (game._logSeq | 0) + 1,
+    round: game.roundNumber | 0,
+    slot,
+    text,
+    cardId: cardId || null,
+    kind: kind || "play"
+  };
+  game.log.push(entry);
+  if (game.log.length > MAX_LOG) game.log.splice(0, game.log.length - MAX_LOG);
+}
 function createPlayerState(deckIds) {
   const deck = shuffle(deckIds.slice());
   return {
@@ -55582,7 +55597,11 @@ function createPlayerState(deckIds) {
     discard: [],
     costPool: MAX_COST_PER_TURN,
     turnMaxCost: MAX_COST_PER_TURN,
-    costCapOnNextTurn: null
+    costCapOnNextTurn: null,
+    attackStock: 0,
+    roundLocked: false,
+    /** このプレイヤーが次にカードを使おうとしたとき、回数分プレイが無効化される */
+    negateIncomingPlays: 0
   };
 }
 function reshuffleDiscardIntoDeck(p) {
@@ -55629,26 +55648,57 @@ function evalCondition(game, actorIndex, cond) {
       return false;
   }
 }
-function startTurn(game, playerIndex) {
-  const p = game.players[playerIndex];
-  const cap = p.costCapOnNextTurn != null ? Math.max(1, Math.min(MAX_COST_PER_TURN, p.costCapOnNextTurn | 0)) : MAX_COST_PER_TURN;
-  p.costCapOnNextTurn = null;
-  p.turnMaxCost = cap;
-  p.costPool = cap;
-  const drawn = drawCards(p, DRAW_PER_TURN);
-  p.hand.push(...drawn);
-}
 function discardEntireHand(p) {
   while (p.hand.length > 0) {
     p.discard.push(p.hand.pop());
   }
 }
-function endTurn(game) {
-  const p = game.players[game.turnIndex];
-  discardEntireHand(p);
-  game.turnIndex = 1 - game.turnIndex;
-  game.turnNumber += 1;
-  startTurn(game, game.turnIndex);
+function applyCostCapForRound(p) {
+  const cap = p.costCapOnNextTurn != null ? Math.max(1, Math.min(MAX_COST_PER_TURN, p.costCapOnNextTurn | 0)) : MAX_COST_PER_TURN;
+  p.costCapOnNextTurn = null;
+  p.turnMaxCost = cap;
+  p.costPool = cap;
+}
+function startRound(game) {
+  for (const p of game.players) {
+    p.roundLocked = false;
+    p.attackStock = 0;
+    applyCostCapForRound(p);
+    const drawn = drawCards(p, DRAW_PER_TURN);
+    p.hand.push(...drawn);
+  }
+  game.firstLocker = null;
+  pushLog(
+    game,
+    null,
+    `\u30E9\u30A6\u30F3\u30C9 ${game.roundNumber} \u2014 \u540C\u6642\u884C\u52D5\u3002\u30AB\u30FC\u30C9\u3092\u4F7F\u3044\u300C\u78BA\u5B9A\u300D\u3067\u4EA4\u6226\u3078`,
+    null,
+    "system"
+  );
+}
+function describeEffectLine(e2) {
+  const v = e2.value | 0;
+  switch (e2.type) {
+    case "damage":
+      return `\u4EA4\u6226\u529B+${v}`;
+    case "damageIf":
+      return `\u4EA4\u6226\u529B+${v}\uFF08\u6761\u4EF6\uFF09`;
+    case "heal":
+      return `HP+${v}`;
+    case "draw":
+      return `\u30C9\u30ED\u30FC${v}`;
+    case "discardSelf":
+      return `\u81EA\u5206\u306E\u624B\u672D\u3092${v}\u679A\u6368\u3066\u308B`;
+    case "discardOpponent":
+    case "negateOpponentNextPlay":
+      return `\u76F8\u624B\u306E\u6B21\u306E\u30D7\u30EC\u30A4\u3092${Math.max(1, v || 1)}\u56DE\u7121\u52B9\u5316`;
+    case "healIf":
+      return `HP+${v}\uFF08\u6761\u4EF6\uFF09`;
+    case "capOpponentNextTurn":
+      return `\u6B21\u30E9\u30A6\u30F3\u30C9\u76F8\u624B\u306E\u30B3\u30B9\u30C8\u4E0A\u9650${e2.cap | 0}`;
+    default:
+      return e2.type || "?";
+  }
 }
 function applyCardEffects(game, actorIndex, cardDef) {
   const opponentIndex = 1 - actorIndex;
@@ -55657,7 +55707,7 @@ function applyCardEffects(game, actorIndex, cardDef) {
   const effects = cardDef.effects || [];
   for (const e2 of effects) {
     if (e2.type === "damage") {
-      opp.hp = Math.max(0, opp.hp - (e2.value | 0));
+      self2.attackStock += e2.value | 0;
     } else if (e2.type === "heal") {
       self2.hp = Math.min(MAX_HP, self2.hp + (e2.value | 0));
     } else if (e2.type === "draw") {
@@ -55665,11 +55715,12 @@ function applyCardEffects(game, actorIndex, cardDef) {
       self2.hand.push(...drawn);
     } else if (e2.type === "discardSelf") {
       discardRandomFromHand(self2, e2.value | 0);
-    } else if (e2.type === "discardOpponent") {
-      discardRandomFromHand(opp, e2.value | 0);
+    } else if (e2.type === "discardOpponent" || e2.type === "negateOpponentNextPlay") {
+      const n2 = Math.max(1, e2.value | 0);
+      opp.negateIncomingPlays = (opp.negateIncomingPlays | 0) + n2;
     } else if (e2.type === "damageIf") {
       if (evalCondition(game, actorIndex, e2)) {
-        opp.hp = Math.max(0, opp.hp - (e2.value | 0));
+        self2.attackStock += e2.value | 0;
       }
     } else if (e2.type === "healIf") {
       if (evalCondition(game, actorIndex, e2)) {
@@ -55682,12 +55733,25 @@ function applyCardEffects(game, actorIndex, cardDef) {
   }
 }
 function playCard(game, playerIndex, handIndex, cardById) {
-  if (game.turnIndex !== playerIndex) {
-    return { ok: false, reason: "\u3042\u306A\u305F\u306E\u30BF\u30FC\u30F3\u3067\u306F\u3042\u308A\u307E\u305B\u3093\u3002" };
-  }
   const p = game.players[playerIndex];
+  if (p.roundLocked) {
+    return { ok: false, reason: "\u78BA\u5B9A\u6E08\u307F\u306E\u305F\u3081\u30AB\u30FC\u30C9\u306F\u4F7F\u3048\u307E\u305B\u3093\u3002" };
+  }
   if (handIndex < 0 || handIndex >= p.hand.length) {
     return { ok: false, reason: "\u624B\u672D\u304C\u4E0D\u6B63\u3067\u3059\u3002" };
+  }
+  if (p.negateIncomingPlays > 0) {
+    p.negateIncomingPlays -= 1;
+    const wouldId = p.hand[handIndex];
+    const wouldName = cardById[wouldId]?.name || wouldId;
+    pushLog(
+      game,
+      playerIndex,
+      `\u7121\u52B9\u5316 \u2014 ${wouldName} \u306F\u767A\u52D5\u3057\u306A\u304B\u3063\u305F\uFF08\u76F8\u624B\u306E\u59A8\u5BB3\uFF09`,
+      wouldId,
+      "negate"
+    );
+    return { ok: true, negated: true };
   }
   const cardId = p.hand[handIndex];
   const def = cardById[cardId];
@@ -55700,9 +55764,79 @@ function playCard(game, playerIndex, handIndex, cardById) {
   p.hand.splice(handIndex, 1);
   p.discard.push(cardId);
   applyCardEffects(game, playerIndex, def);
-  if (game.players[1 - playerIndex].hp <= 0) {
-    return { ok: true, winnerIndex: playerIndex };
+  const effText = (def.effects || []).map(describeEffectLine).join(" / ");
+  pushLog(
+    game,
+    playerIndex,
+    `${def.name || cardId}${effText ? ` \u2014 ${effText}` : ""}`,
+    cardId,
+    "play"
+  );
+  return { ok: true };
+}
+function lockRound(game, playerIndex) {
+  const p = game.players[playerIndex];
+  if (p.roundLocked) {
+    return { ok: false, reason: "\u3059\u3067\u306B\u78BA\u5B9A\u6E08\u307F\u3067\u3059\u3002" };
   }
+  p.roundLocked = true;
+  if (game.firstLocker === null) {
+    game.firstLocker = playerIndex;
+    pushLog(
+      game,
+      playerIndex,
+      `\u5148\u306B\u78BA\u5B9A\uFF08\u4EA4\u6226\u6642 +${FIRST_LOCK_ATTACK_BONUS} \u4EA4\u6226\u529B\uFF09`,
+      null,
+      "lock"
+    );
+  } else {
+    pushLog(game, playerIndex, "\u30E9\u30A6\u30F3\u30C9\u78BA\u5B9A", null, "lock");
+  }
+  return { ok: true };
+}
+function bothLocked(game) {
+  return game.players[0].roundLocked && game.players[1].roundLocked;
+}
+function resolveRound(game, cardById) {
+  if (game.firstLocker != null) {
+    const pl = game.players[game.firstLocker];
+    pl.attackStock += FIRST_LOCK_ATTACK_BONUS;
+  }
+  const a0 = game.players[0].attackStock;
+  const a1 = game.players[1].attackStock;
+  if (a0 > a1) {
+    const d = a0 - a1;
+    game.players[1].hp = Math.max(0, game.players[1].hp - d);
+    pushLog(
+      game,
+      1,
+      `\u4EA4\u6226\u3067 ${d} \u30C0\u30E1\u30FC\u30B8\uFF08\u76F8\u624B\u306E\u4EA4\u6226\u529B ${a0} / \u81EA\u5206 ${a1}\uFF09`,
+      null,
+      "clash"
+    );
+  } else if (a1 > a0) {
+    const d = a1 - a0;
+    game.players[0].hp = Math.max(0, game.players[0].hp - d);
+    pushLog(
+      game,
+      0,
+      `\u4EA4\u6226\u3067 ${d} \u30C0\u30E1\u30FC\u30B8\uFF08\u76F8\u624B\u306E\u4EA4\u6226\u529B ${a1} / \u81EA\u5206 ${a0}\uFF09`,
+      null,
+      "clash"
+    );
+  } else {
+    pushLog(game, null, `\u4EA4\u6226 \u2014 \u540C\u5024\uFF08${a0}\uFF09\u3067\u30C0\u30E1\u30FC\u30B8\u306A\u3057`, null, "clash");
+  }
+  for (const p of game.players) {
+    discardEntireHand(p);
+  }
+  if (game.players[0].hp <= 0 || game.players[1].hp <= 0) {
+    const winnerIndex = game.players[0].hp <= 0 ? 1 : 0;
+    return { winnerIndex };
+  }
+  game.roundNumber += 1;
+  game.firstLocker = null;
+  startRound(game);
   return { ok: true };
 }
 function publicSnapshot(game, viewerIndex, cardById) {
@@ -55717,18 +55851,26 @@ function publicSnapshot(game, viewerIndex, cardById) {
       deckCount: self2.deck.length,
       discardCount: self2.discard.length,
       costPool: self2.costPool,
-      maxCost: self2.turnMaxCost ?? MAX_COST_PER_TURN
+      maxCost: self2.turnMaxCost ?? MAX_COST_PER_TURN,
+      attackStock: self2.attackStock,
+      roundLocked: self2.roundLocked,
+      negateIncomingPlays: self2.negateIncomingPlays
     },
     opponent: {
       hp: opp.hp,
       maxHp: MAX_HP,
+      hand: opp.hand.map((id) => cardById[id]),
       handCount: opp.hand.length,
       deckCount: opp.deck.length,
-      discardCount: opp.discard.length
+      discardCount: opp.discard.length,
+      attackStock: opp.attackStock,
+      roundLocked: opp.roundLocked,
+      negateIncomingPlays: opp.negateIncomingPlays
     },
-    turnIndex: game.turnIndex,
+    roundNumber: game.roundNumber,
     youAre: viewerIndex,
-    turnNumber: game.turnNumber
+    firstLocker: game.firstLocker,
+    battleLog: (game.log || []).slice()
   };
 }
 
@@ -55850,10 +55992,12 @@ function createSkyWayP2P({
         createPlayerState(lobby.hostDeck),
         createPlayerState(lobby.guestDeck)
       ],
-      turnIndex: Math.floor(Math.random() * 2),
-      turnNumber: 1
+      roundNumber: 1,
+      firstLocker: null,
+      log: [],
+      _logSeq: 0
     };
-    startTurn(game, game.turnIndex);
+    startRound(game);
     emitGameBoth();
   }
   function handleGuestAction(msg) {
@@ -55865,20 +56009,24 @@ function createSkyWayP2P({
         return;
       }
       emitGameBoth();
-      if (res.winnerIndex !== void 0) {
-        broadcastDown({ t: "gameOver", winnerSlot: res.winnerIndex });
-        game = null;
-        onGameOver({ winnerSlot: res.winnerIndex });
-      }
       return;
     }
     if (msg.t === "endTurn") {
-      if (game.turnIndex !== guestSlot) {
-        broadcastDown({ t: "actionError", message: "\u3042\u306A\u305F\u306E\u30BF\u30FC\u30F3\u3067\u306F\u3042\u308A\u307E\u305B\u3093\u3002" });
+      const lockRes = lockRound(game, guestSlot);
+      if (!lockRes.ok) {
+        broadcastDown({ t: "actionError", message: lockRes.reason });
         return;
       }
-      endTurn(game);
       emitGameBoth();
+      if (bothLocked(game)) {
+        const clash = resolveRound(game, cardById);
+        emitGameBoth();
+        if (clash.winnerIndex !== void 0) {
+          broadcastDown({ t: "gameOver", winnerSlot: clash.winnerIndex });
+          game = null;
+          onGameOver({ winnerSlot: clash.winnerIndex });
+        }
+      }
     }
   }
   function handleHostLocalAction(msg) {
@@ -55890,20 +56038,24 @@ function createSkyWayP2P({
         return;
       }
       emitGameBoth();
-      if (res.winnerIndex !== void 0) {
-        broadcastDown({ t: "gameOver", winnerSlot: res.winnerIndex });
-        game = null;
-        onGameOver({ winnerSlot: res.winnerIndex });
-      }
       return;
     }
     if (msg.t === "endTurn") {
-      if (game.turnIndex !== hostSlot) {
-        onActionError({ message: "\u3042\u306A\u305F\u306E\u30BF\u30FC\u30F3\u3067\u306F\u3042\u308A\u307E\u305B\u3093\u3002" });
+      const lockRes = lockRound(game, hostSlot);
+      if (!lockRes.ok) {
+        onActionError({ message: lockRes.reason });
         return;
       }
-      endTurn(game);
       emitGameBoth();
+      if (bothLocked(game)) {
+        const clash = resolveRound(game, cardById);
+        emitGameBoth();
+        if (clash.winnerIndex !== void 0) {
+          broadcastDown({ t: "gameOver", winnerSlot: clash.winnerIndex });
+          game = null;
+          onGameOver({ winnerSlot: clash.winnerIndex });
+        }
+      }
     }
   }
   function handleGuestDownlink(raw) {

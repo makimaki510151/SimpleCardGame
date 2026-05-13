@@ -124,9 +124,11 @@ function renderCardBody(container, card) {
   }
 }
 
-function makeCardFace(card, { wide } = {}) {
+function makeCardFace(card, { wide, mini } = {}) {
   const root = document.createElement("div");
-  root.className = wide ? "card-face wide" : "card-face";
+  if (wide) root.className = "card-face wide";
+  else if (mini) root.className = "card-face mini";
+  else root.className = "card-face";
   const cost = document.createElement("div");
   cost.className = "card-cost";
   const c = Math.min(5, Math.max(0, card.cost | 0));
@@ -336,45 +338,136 @@ function autoSendDeckIfPossible() {
   }
 }
 
+let lastBattleLogSeq = 0;
+let lastSelfAttack = -1;
+let lastOppAttack = -1;
+
+function renderBattleLog(entries, youAre) {
+  const box = $("#battle-log");
+  if (!box) return;
+  box.textContent = "";
+  let maxSeq = lastBattleLogSeq;
+  for (const e of entries || []) {
+    if (e.seq > maxSeq) maxSeq = e.seq;
+    const row = document.createElement("div");
+    row.className = "log-row";
+    const who =
+      e.slot === null
+        ? ""
+        : e.slot === youAre
+          ? "あなた › "
+          : "相手 › ";
+    row.textContent = `${who}${e.text}`;
+    if (e.kind === "clash") row.classList.add("log-clash");
+    else if (e.kind === "system") row.classList.add("log-sys");
+    else if (e.kind === "negate") row.classList.add("log-neg");
+    else if (e.slot === youAre) row.classList.add("log-you");
+    else if (e.slot !== null) row.classList.add("log-opp");
+    if (e.seq > lastBattleLogSeq) row.classList.add("flash");
+    box.appendChild(row);
+  }
+  lastBattleLogSeq = maxSeq;
+  box.scrollTop = box.scrollHeight;
+}
+
 function onGameState(state) {
   showScreen("screen-game");
   lastGameYouAre = state.youAre;
   $("#opp-hp").textContent = String(state.opponent.hp);
   $("#self-hp").textContent = String(state.you.hp);
-  $("#opp-hand").textContent = String(state.opponent.handCount);
+  $("#opp-hand").textContent = String(
+    state.opponent.handCount ?? state.opponent.hand?.length ?? 0
+  );
   $("#opp-deck").textContent = String(state.opponent.deckCount);
   $("#opp-disc").textContent = String(state.opponent.discardCount);
   $("#self-deck").textContent = String(state.you.deckCount);
   $("#self-disc").textContent = String(state.you.discardCount);
-  $("#turn-no").textContent = String(state.turnNumber);
+  $("#turn-no").textContent = String(state.roundNumber);
+
+  const oStock = String(state.opponent.attackStock | 0);
+  const sStock = String(state.you.attackStock | 0);
+  $("#opp-attack-stock").textContent = oStock;
+  $("#self-attack-stock").textContent = sStock;
+
+  const oa = $("#opp-attack-stock");
+  const sa = $("#self-attack-stock");
+  if ((state.opponent.attackStock | 0) > lastOppAttack) {
+    oa.classList.add("pulse");
+    clearTimeout(oa._ptm);
+    oa._ptm = setTimeout(() => oa.classList.remove("pulse"), 480);
+  }
+  if ((state.you.attackStock | 0) > lastSelfAttack) {
+    sa.classList.add("pulse");
+    clearTimeout(sa._ptm);
+    sa._ptm = setTimeout(() => sa.classList.remove("pulse"), 480);
+  }
+  lastOppAttack = state.opponent.attackStock | 0;
+  lastSelfAttack = state.you.attackStock | 0;
+
   $("#cost-current").textContent = String(state.you.costPool);
   $("#cost-max").textContent = String(
     state.you.maxCost ?? state.you.costPool
   );
-  const yourTurn = state.turnIndex === state.youAre;
-  const banner = $("#turn-banner");
-  banner.textContent = yourTurn ? "あなたのターン" : "相手のターン";
-  banner.classList.toggle("wait", !yourTurn);
-  $("#btn-end-turn").disabled = !yourTurn;
-  $("#cost-bar").classList.toggle("wait", !yourTurn);
 
+  const myLock = !!state.you.roundLocked;
+  const opLock = !!state.opponent.roundLocked;
+  const badgeSelf = $("#self-lock-badge");
+  const badgeOpp = $("#opp-lock-badge");
+  if (badgeSelf) {
+    badgeSelf.hidden = !myLock;
+  }
+  if (badgeOpp) {
+    badgeOpp.hidden = !opLock;
+  }
+
+  const banner = $("#turn-banner");
+  if (myLock && opLock) {
+    banner.textContent = "双方確定 — 交戦を解決中";
+  } else if (myLock) {
+    banner.textContent = "あなたは確定済み（相手の行動・確定待ち）";
+  } else {
+    banner.textContent = "同時行動 — カードを使い、準備ができたら確定";
+  }
+  banner.classList.toggle("wait", myLock);
+
+  $("#cost-bar").classList.toggle("wait", myLock);
+
+  const oppStrip = $("#opp-hand-cards");
+  if (oppStrip) {
+    oppStrip.textContent = "";
+    const oh = state.opponent.hand || [];
+    for (const c of oh) {
+      oppStrip.appendChild(makeCardFace(c, { mini: true }));
+    }
+  }
+
+  renderBattleLog(state.battleLog, state.youAre);
+
+  const canPlay = !myLock;
   const hand = $("#hand");
   hand.textContent = "";
   state.you.hand.forEach((card, idx) => {
     const el = makeCardFace(card);
     el.dataset.index = String(idx);
-    const affordable = yourTurn && (card.cost | 0) <= state.you.costPool;
+    const affordable = canPlay && (card.cost | 0) <= state.you.costPool;
     if (!affordable) el.classList.add("disabled");
-    if (yourTurn && affordable) {
+    if (canPlay && affordable) {
       el.addEventListener("click", () => {
         playCardAction(idx);
       });
     }
     hand.appendChild(el);
   });
+
+  const btn = $("#btn-end-turn");
+  btn.disabled = myLock;
+  btn.textContent = myLock ? "確定済み" : "このラウンドを確定";
 }
 
 function onGameOver(payload) {
+  lastBattleLogSeq = 0;
+  lastSelfAttack = -1;
+  lastOppAttack = -1;
   const youWin = payload.winnerSlot === lastGameYouAre;
   showScreen("screen-result");
   $("#result-title").textContent = youWin ? "勝利！" : "敗北…";
