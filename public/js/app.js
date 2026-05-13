@@ -497,6 +497,119 @@ function renderBattleLog(entries, youAre) {
   box.scrollTop = box.scrollHeight;
 }
 
+let duelLogResizeObserver = null;
+
+function updateDuelLogMaxHeight() {
+  const screen = document.getElementById("screen-game");
+  const opp = document.querySelector(".duel-opp-field");
+  const selfField = document.querySelector(".duel-self-field");
+  if (!screen || !opp || !selfField) return;
+  const sum = Math.ceil(
+    opp.getBoundingClientRect().height +
+      selfField.getBoundingClientRect().height
+  );
+  const px = Math.max(140, Math.min(sum, 560));
+  screen.style.setProperty("--duel-log-max-h", `${px}px`);
+}
+
+function bindDuelLayoutMetricsOnce() {
+  const screen = document.getElementById("screen-game");
+  if (!screen || screen.dataset.duelLayoutBound === "1") return;
+  screen.dataset.duelLayoutBound = "1";
+  const ro = new ResizeObserver(() => updateDuelLogMaxHeight());
+  const opp = document.querySelector(".duel-opp-field");
+  const selfField = document.querySelector(".duel-self-field");
+  if (opp) ro.observe(opp);
+  if (selfField) ro.observe(selfField);
+  duelLogResizeObserver = ro;
+  window.addEventListener("resize", updateDuelLogMaxHeight);
+}
+
+function fillStatusRail(bodyEl, rows) {
+  if (!bodyEl) return;
+  bodyEl.textContent = "";
+  if (!rows.length) {
+    const div = document.createElement("div");
+    div.className = "duel-fx-line duel-fx-line--empty";
+    div.textContent = "なし";
+    bodyEl.appendChild(div);
+    return;
+  }
+  for (const row of rows) {
+    const div = document.createElement("div");
+    div.className = `duel-fx-line duel-fx-line--${row.kind}`;
+    if (row.strong) div.classList.add("duel-fx-line--strong");
+    div.textContent = row.text;
+    bodyEl.appendChild(div);
+  }
+}
+
+function renderDuelStatusRails(state) {
+  const you = state.you;
+  const opp = state.opponent;
+  const youAre = state.youAre | 0;
+  const fl = state.firstLocker;
+  const oppIx = 1 - youAre;
+
+  const oppRows = [];
+  if ((opp.negateIncomingPlays | 0) > 0) {
+    oppRows.push({
+      kind: "neg",
+      text: `相手の使用無効 あと${opp.negateIncomingPlays}`,
+    });
+  }
+  if ((opp.pendingFirstLockAttack | 0) > 0) {
+    oppRows.push({
+      kind: "pfa",
+      text: `相手 先行交戦 +${opp.pendingFirstLockAttack}`,
+    });
+  }
+  const occ = opp.costCapNextTurn;
+  if (occ != null && (occ | 0) > 0) {
+    oppRows.push({
+      kind: "cap",
+      text: `次ターン相手コスト ${occ | 0}`,
+    });
+  }
+  if (fl === oppIx) {
+    oppRows.push({
+      kind: "lock",
+      text: "相手が先行確定",
+      strong: true,
+    });
+  }
+  fillStatusRail($("#opp-status-rail-body"), oppRows);
+
+  const selfRows = [];
+  if ((you.negateIncomingPlays | 0) > 0) {
+    selfRows.push({
+      kind: "neg",
+      text: `あなたの使用無効 あと${you.negateIncomingPlays}`,
+    });
+  }
+  if ((you.pendingFirstLockAttack | 0) > 0) {
+    selfRows.push({
+      kind: "pfa",
+      text: `先行確定交戦 +${you.pendingFirstLockAttack}`,
+    });
+  }
+  const ycc = you.costCapNextTurn;
+  if (ycc != null && (ycc | 0) > 0) {
+    selfRows.push({
+      kind: "cap",
+      text: `次の自分コスト ${ycc | 0}`,
+    });
+  }
+  if (fl === youAre) {
+    selfRows.push({
+      kind: "lock",
+      text: "あなたが先行確定",
+      strong: true,
+    });
+  }
+  fillStatusRail($("#self-status-rail-body"), selfRows);
+}
+
 function onGameState(state) {
   showScreen("screen-game");
   applyDuelZoomClass();
@@ -731,6 +844,13 @@ function onGameState(state) {
   const btn = $("#btn-end-turn");
   btn.disabled = myLock;
   btn.textContent = myLock ? "確定済み" : "このラウンドを確定";
+
+  bindDuelLayoutMetricsOnce();
+  renderDuelStatusRails(state);
+  requestAnimationFrame(() => {
+    updateDuelLogMaxHeight();
+    requestAnimationFrame(updateDuelLogMaxHeight);
+  });
 
   lastDuelGameState = state;
 }

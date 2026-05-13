@@ -611,6 +611,7 @@ h3 {
 #screen-game {
   --duel-card-w: 108px;
   --duel-card-h: 142px;
+  --duel-log-max-h: min(32vh, 13rem);
 }
 
 #screen-game.duel-zoom-lg {
@@ -893,6 +894,85 @@ h3 {
   min-height: 0;
 }
 
+.duel-status-rail {
+  flex: 0 0 auto;
+  width: clamp(4.75rem, 14vw, 6.35rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 0.3rem 0.34rem;
+  border-radius: 10px;
+  border: 1px solid rgba(139, 148, 158, 0.35);
+  background: rgba(13, 17, 23, 0.92);
+  min-height: 0;
+  align-self: stretch;
+}
+
+.duel-status-rail--opp {
+  border-color: rgba(248, 81, 73, 0.38);
+}
+
+.duel-status-rail--self {
+  border-color: rgba(88, 166, 255, 0.4);
+}
+
+.duel-status-rail-head {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  text-align: center;
+}
+
+.duel-status-rail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.duel-fx-line {
+  font-size: 0.66rem;
+  line-height: 1.32;
+  padding: 0.18rem 0.26rem;
+  border-radius: 7px;
+  background: rgba(22, 27, 34, 0.95);
+  border: 1px solid var(--line);
+  color: #c9d1d9;
+  text-align: center;
+  word-break: break-word;
+}
+
+.duel-fx-line--strong {
+  border-color: rgba(210, 168, 255, 0.45);
+  color: #d2a8ff;
+  font-weight: 700;
+}
+
+.duel-fx-line--empty {
+  color: var(--muted);
+  font-weight: 500;
+  border-style: dashed;
+}
+
+.duel-fx-line--neg {
+  border-color: rgba(255, 166, 87, 0.45);
+  color: #ffa657;
+}
+
+.duel-fx-line--pfa {
+  border-color: rgba(255, 184, 108, 0.4);
+  color: #ffb86c;
+}
+
+.duel-fx-line--cap {
+  border-color: rgba(240, 136, 62, 0.42);
+  color: #f0883e;
+}
+
+.duel-fx-line--lock {
+  border-color: rgba(163, 113, 247, 0.42);
+}
+
 .duel-play-column > .duel-hand-lane {
   margin-top: 0;
   flex: 1 1 auto;
@@ -1092,7 +1172,7 @@ h3 {
 .duel-center {
   flex: 0 1 auto;
   min-height: 0;
-  max-height: min(26vh, 11rem);
+  max-height: var(--duel-log-max-h, min(26vh, 11rem));
 }
 
 .duel-log-panel {
@@ -1100,7 +1180,7 @@ h3 {
   border: 1px solid var(--line);
   background: #0d1117;
   overflow: hidden;
-  max-height: min(32vh, 13rem);
+  max-height: var(--duel-log-max-h, min(32vh, 13rem));
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1117,7 +1197,6 @@ h3 {
 }
 
 #screen-game .battle-log {
-  max-height: min(22vh, 9rem);
   margin: 0;
   border: none;
   border-radius: 0;
@@ -1129,6 +1208,7 @@ h3 {
   background: #0d1117;
   flex: 1 1 auto;
   min-height: 0;
+  max-height: none;
 }
 
 .battle-log .log-row {
@@ -1489,7 +1569,7 @@ h3 {
   }
 
   .duel-log-panel {
-    max-height: min(34vh, 14rem);
+    max-height: var(--duel-log-max-h, min(34vh, 14rem));
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -1497,8 +1577,8 @@ h3 {
 
   #screen-game .battle-log {
     flex: 1 1 auto;
-    max-height: min(22vh, 9rem);
     min-height: 0;
+    max-height: none;
   }
 }
 

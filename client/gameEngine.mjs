@@ -443,6 +443,7 @@ export function publicSnapshot(game, viewerIndex, cardById) {
       pendingFirstLockAttack: self.pendingFirstLockAttack | 0,
       roundLocked: self.roundLocked,
       negateIncomingPlays: self.negateIncomingPlays,
+      costCapNextTurn: self.costCapOnNextTurn,
     },
     opponent: {
       hp: opp.hp,
@@ -454,6 +455,8 @@ export function publicSnapshot(game, viewerIndex, cardById) {
       attackStock: opp.attackStock,
       roundLocked: opp.roundLocked,
       negateIncomingPlays: opp.negateIncomingPlays,
+      pendingFirstLockAttack: opp.pendingFirstLockAttack | 0,
+      costCapNextTurn: opp.costCapOnNextTurn,
     },
     roundNumber: game.roundNumber,
     youAre: viewerIndex,

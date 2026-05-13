@@ -55947,7 +55947,8 @@ function publicSnapshot(game, viewerIndex, cardById) {
       attackStock: self2.attackStock,
       pendingFirstLockAttack: self2.pendingFirstLockAttack | 0,
       roundLocked: self2.roundLocked,
-      negateIncomingPlays: self2.negateIncomingPlays
+      negateIncomingPlays: self2.negateIncomingPlays,
+      costCapNextTurn: self2.costCapOnNextTurn
     },
     opponent: {
       hp: opp.hp,
@@ -55958,7 +55959,9 @@ function publicSnapshot(game, viewerIndex, cardById) {
       discardCount: opp.discard.length,
       attackStock: opp.attackStock,
       roundLocked: opp.roundLocked,
-      negateIncomingPlays: opp.negateIncomingPlays
+      negateIncomingPlays: opp.negateIncomingPlays,
+      pendingFirstLockAttack: opp.pendingFirstLockAttack | 0,
+      costCapNextTurn: opp.costCapOnNextTurn
     },
     roundNumber: game.roundNumber,
     youAre: viewerIndex,
