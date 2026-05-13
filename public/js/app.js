@@ -141,20 +141,9 @@ function renderCardBody(container, card) {
   container.textContent = "";
   const parts = card.body || [];
   const eff = card.effects || [];
-  const hasLate = eff.some((e) => e.type === "attackIfFirstLockerResolve");
   const hasIf = eff.some(
     (e) => e.type === "damageIf" || e.type === "healIf"
   );
-  let splitIdx = -1;
-  if (hasLate) {
-    splitIdx = parts.findIndex((p) => (p.t || "").includes("先に確定"));
-  }
-  if (splitIdx < 0 && hasIf) {
-    splitIdx = parts.findIndex((s) => s.c === "condition");
-  }
-  if (splitIdx < 0) {
-    splitIdx = parts.findIndex((p) => (p.t || "").includes("無効化"));
-  }
 
   function appendSpan(seg) {
     const span = document.createElement("span");
@@ -163,30 +152,39 @@ function renderCardBody(container, card) {
     return span;
   }
 
-  if (splitIdx >= 0) {
-    for (let i = 0; i < splitIdx; i++) {
-      container.appendChild(appendSpan(parts[i]));
+  if (!hasIf) {
+    for (const seg of parts) {
+      container.appendChild(appendSpan(seg));
     }
-    const wrap = document.createElement("div");
-    wrap.className = "card-body-bonus-wrap";
-    const lab = document.createElement("div");
-    lab.className = "card-body-bonus-label";
-    lab.textContent = hasLate
-      ? "追加効果（交戦時）"
-      : (card.effects || []).some((e) => e.type === "negateOpponentNextPlay")
-        ? "追加効果（妨害）"
-        : "追加効果（条件）";
-    wrap.appendChild(lab);
-    for (let i = splitIdx; i < parts.length; i++) {
-      wrap.appendChild(appendSpan(parts[i]));
-    }
-    container.appendChild(wrap);
     return;
   }
 
-  for (const seg of parts) {
-    container.appendChild(appendSpan(seg));
+  const condIdx = parts.findIndex((s) => s.c === "condition");
+  if (condIdx < 0) {
+    for (const seg of parts) {
+      container.appendChild(appendSpan(seg));
+    }
+    return;
   }
+
+  let bonusStart = condIdx;
+  while (bonusStart > 0 && parts[bonusStart - 1].c === "muted") {
+    bonusStart -= 1;
+  }
+
+  for (let i = 0; i < bonusStart; i++) {
+    container.appendChild(appendSpan(parts[i]));
+  }
+  const wrap = document.createElement("div");
+  wrap.className = "card-body-bonus-wrap";
+  const lab = document.createElement("div");
+  lab.className = "card-body-bonus-label";
+  lab.textContent = "追加効果（条件）";
+  wrap.appendChild(lab);
+  for (let i = bonusStart; i < parts.length; i++) {
+    wrap.appendChild(appendSpan(parts[i]));
+  }
+  container.appendChild(wrap);
 }
 
 function makeCardFace(card, { wide } = {}) {

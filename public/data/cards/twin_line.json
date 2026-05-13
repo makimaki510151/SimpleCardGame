@@ -5,13 +5,15 @@
   "body": [
     { "t": "交戦力 ", "c": "muted" },
     { "t": "4", "c": "damage" },
-    { "t": "。自分の手札が ", "c": "muted" },
-    { "t": "5", "c": "condition" },
-    { "t": " 以上ならさらに ", "c": "muted" },
-    { "t": "5", "c": "damage" },
-    { "t": "。カードを ", "c": "muted" },
+    { "t": "。", "c": "muted" },
+    { "t": "カードを ", "c": "muted" },
     { "t": "1", "c": "draw" },
-    { "t": " 引く。", "c": "muted" }
+    { "t": " 引く。", "c": "muted" },
+    { "t": "自分の手札が ", "c": "muted" },
+    { "t": "5", "c": "condition" },
+    { "t": " 以上ならさらに交戦力 ", "c": "muted" },
+    { "t": "5", "c": "damage" },
+    { "t": "。", "c": "muted" }
   ],
   "effects": [
     { "type": "damage", "value": 4 },

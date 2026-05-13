@@ -5,7 +5,8 @@
   "body": [
     { "t": "交戦力 ", "c": "muted" },
     { "t": "2", "c": "damage" },
-    { "t": "。相手のHPが ", "c": "muted" },
+    { "t": "。", "c": "muted" },
+    { "t": "相手のHPが ", "c": "muted" },
     { "t": "25", "c": "condition" },
     { "t": " 以上ならさらに ", "c": "muted" },
     { "t": "3", "c": "damage" },
