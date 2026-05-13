@@ -1,0 +1,11 @@
+{
+  "id": "second_wind",
+  "name": "セカンドウィンド",
+  "cost": 4,
+  "body": [
+    { "t": "自分のHPを ", "c": "muted" },
+    { "t": "22", "c": "heal" },
+    { "t": " 回復。", "c": "muted" }
+  ],
+  "effects": [{ "type": "heal", "value": 22 }]
+}

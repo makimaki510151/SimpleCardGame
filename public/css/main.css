@@ -1,0 +1,451 @@
+:root {
+  --bg: #0e1117;
+  --panel: #161b22;
+  --line: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent2: #a371f7;
+  --danger: #f85149;
+  --heal: #3fb950;
+  --card: #21262d;
+  --card-border: #3d444d;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  font-family: "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", Meiryo, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(1200px 800px at 20% 0%, #1f2937 0%, var(--bg) 55%);
+  color: var(--text);
+}
+
+.shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
+}
+
+.topbar {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.logo {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.tagline {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.screen {
+  display: none;
+}
+
+.screen.active {
+  display: block;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.25rem 1.25rem 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.panel.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 420px;
+  margin: 2rem auto;
+}
+
+h2 {
+  margin: 0.5rem 0 1rem;
+  font-size: 1.35rem;
+}
+
+h3 {
+  margin: 1rem 0 0.5rem;
+  font-size: 1rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.transport-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.skyway-token-input {
+  width: 100%;
+  margin-bottom: 0.75rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.join-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.input {
+  flex: 1;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #0d1117;
+  color: var(--text);
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.btn {
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: #21262d;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-size: 1rem;
+  transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s;
+}
+
+.btn:hover {
+  border-color: var(--accent);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, #1f6feb, #8957e5);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+.btn.xl {
+  padding: 0.9rem 1rem;
+  font-size: 1.05rem;
+}
+
+.btn.back {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.room-code-line {
+  font-size: 1.1rem;
+}
+
+.mono {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+}
+
+.lobby-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.lobby-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--muted);
+}
+
+.lobby-list li strong {
+  color: var(--text);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text);
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-top: 1rem;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  background: #21262d;
+  border: 1px solid var(--line);
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 50;
+  max-width: min(520px, 92vw);
+}
+
+.toast[hidden] {
+  display: none !important;
+}
+
+/* カード共通 */
+.card-face {
+  position: relative;
+  width: 140px;
+  min-height: 190px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #2a3038, #1a1f26);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 0.55rem 0.6rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.card-face.wide {
+  width: 160px;
+  min-height: 210px;
+}
+
+.card-cost {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #f0c674;
+  text-shadow: 0 0 12px rgba(240, 198, 116, 0.35);
+}
+
+.card-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin: 0 2rem 0.35rem 0;
+  letter-spacing: 0.02em;
+}
+
+.card-body {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0.1rem 0.15rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  padding: 0.35rem 0.15rem;
+}
+
+.seg-muted {
+  color: #c9d1d9;
+}
+
+.seg-damage {
+  color: #ff7b72;
+  font-weight: 800;
+  text-shadow: 0 0 14px rgba(248, 81, 73, 0.35);
+}
+
+.seg-heal {
+  color: #56d364;
+  font-weight: 800;
+  text-shadow: 0 0 14px rgba(63, 185, 80, 0.35);
+}
+
+/* デッキ構築 */
+.deck-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.deck-meta {
+  margin: 0;
+  color: var(--muted);
+}
+
+.deck-status.ok {
+  color: var(--heal);
+}
+
+.deck-status.bad {
+  color: var(--danger);
+}
+
+.deck-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 2.5rem;
+  padding: 0.5rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: #0d1117;
+}
+
+.deck-chip {
+  font-size: 0.78rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  color: var(--text);
+  background: #161b22;
+}
+
+.deck-chip:hover {
+  border-color: var(--danger);
+}
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.65rem;
+}
+
+.catalog-grid .card-face {
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.15s;
+}
+
+.catalog-grid .card-face:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+}
+
+.deck-footer {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
+/* 対戦 */
+.game-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.hud {
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(22, 27, 34, 0.92);
+}
+
+.hud.opponent {
+  border-color: rgba(248, 81, 73, 0.35);
+}
+
+.hud.self {
+  border-color: rgba(88, 166, 255, 0.35);
+}
+
+.hud-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 600;
+}
+
+.hud-sub {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.hp {
+  font-variant-numeric: tabular-nums;
+}
+
+.cost-bar {
+  margin-top: 0.45rem;
+  font-weight: 600;
+}
+
+.turn-banner {
+  margin-top: 0.35rem;
+  font-size: 0.95rem;
+  color: var(--accent);
+}
+
+.turn-banner.wait {
+  color: var(--muted);
+}
+
+.hand {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.5rem 0.15rem 0.75rem;
+  min-height: 220px;
+  align-items: flex-end;
+}
+
+.hand .card-face {
+  flex: 0 0 auto;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.15s;
+}
+
+.hand .card-face:hover {
+  transform: translateY(-6px);
+}
+
+.hand .card-face.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hand .card-face.disabled:hover {
+  transform: none;
+}
+
+.game-actions {
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .card-face {
+    width: 128px;
+    min-height: 180px;
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "chip",
+  "name": "チップ",
+  "cost": 1,
+  "body": [
+    { "t": "相手に ", "c": "muted" },
+    { "t": "7", "c": "damage" },
+    { "t": " ダメージ。", "c": "muted" }
+  ],
+  "effects": [{ "type": "damage", "value": 7 }]
+}

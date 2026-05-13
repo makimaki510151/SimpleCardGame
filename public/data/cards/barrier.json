@@ -1,0 +1,11 @@
+{
+  "id": "barrier",
+  "name": "バリア",
+  "cost": 3,
+  "body": [
+    { "t": "自分のHPを ", "c": "muted" },
+    { "t": "18", "c": "heal" },
+    { "t": " 回復。", "c": "muted" }
+  ],
+  "effects": [{ "type": "heal", "value": 18 }]
+}

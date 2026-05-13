@@ -1,0 +1,11 @@
+{
+  "id": "cannon",
+  "name": "キャノン",
+  "cost": 4,
+  "body": [
+    { "t": "相手に ", "c": "muted" },
+    { "t": "24", "c": "damage" },
+    { "t": " ダメージ。", "c": "muted" }
+  ],
+  "effects": [{ "type": "damage", "value": 24 }]
+}

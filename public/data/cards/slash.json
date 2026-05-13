@@ -1,0 +1,11 @@
+{
+  "id": "slash",
+  "name": "スラッシュ",
+  "cost": 2,
+  "body": [
+    { "t": "相手に ", "c": "muted" },
+    { "t": "12", "c": "damage" },
+    { "t": " ダメージ。", "c": "muted" }
+  ],
+  "effects": [{ "type": "damage", "value": 12 }]
+}

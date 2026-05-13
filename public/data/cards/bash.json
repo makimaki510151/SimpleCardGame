@@ -1,0 +1,11 @@
+{
+  "id": "bash",
+  "name": "バッシュ",
+  "cost": 3,
+  "body": [
+    { "t": "相手に ", "c": "muted" },
+    { "t": "18", "c": "damage" },
+    { "t": " ダメージ。", "c": "muted" }
+  ],
+  "effects": [{ "type": "damage", "value": 18 }]
+}

@@ -1,0 +1,25 @@
+{
+  "description": "全員が利用できる初期デッキ（20枚・各カード最大3枚）",
+  "cardIds": [
+    "needle",
+    "needle",
+    "needle",
+    "chip",
+    "chip",
+    "slash",
+    "slash",
+    "bash",
+    "cannon",
+    "meteor",
+    "bandage",
+    "bandage",
+    "potion",
+    "potion",
+    "barrier",
+    "second_wind",
+    "slash",
+    "bash",
+    "bandage",
+    "chip"
+  ]
+}

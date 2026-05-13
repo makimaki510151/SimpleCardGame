@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Simple Card Game</title>
+    <base id="scg-base" href="/" />
+    <script>
+      (function () {
+        var p = location.pathname.replace(/\/[^/]*$/, "/");
+        if (p === "//") p = "/";
+        var b = document.getElementById("scg-base");
+        if (b) b.href = p;
+        window.__SCG_BASE__ = p;
+      })();
+    </script>
+    <link rel="stylesheet" href="css/main.css" />
+    <script src="socket.io/socket.io.js" defer></script>
+    <script src="js/app.js" defer></script>
+  </head>
+  <body>
+    <div id="toast" class="toast" hidden></div>
+
+    <main class="shell">
+      <header class="topbar">
+        <h1 class="logo">Simple Card</h1>
+        <p class="tagline">5コスト・20枚デッキ・100HP</p>
+      </header>
+
+      <!-- タイトル -->
+      <section id="screen-title" class="screen active">
+        <div class="panel hero">
+          <button type="button" class="btn primary xl" data-go="online">
+            オンライン対戦
+          </button>
+          <button type="button" class="btn ghost xl" data-go="deck">
+            デッキ構築
+          </button>
+        </div>
+      </section>
+
+      <!-- オンライン: ルーム選択 -->
+      <section id="screen-online-menu" class="screen">
+        <div class="panel">
+          <button type="button" class="btn back" data-back="title">← 戻る</button>
+          <h2>オンライン対戦</h2>
+          <div class="transport-row">
+            <label class="check"
+              ><input type="radio" name="transport" value="socket" checked />
+              自前サーバー（Socket.io）</label
+            >
+            <label class="check"
+              ><input type="radio" name="transport" value="skyway" />
+              インターネット（SkyWay）</label
+            >
+          </div>
+          <p class="hint" id="skyway-token-hint" hidden>
+            SkyWay 用トークン API の URL（HTTPS）を指定してください。GitHub Pages
+            等の静的ホスティングでは Cloudflare Workers 等にトークン発行を置きます。
+          </p>
+          <input
+            id="input-skyway-token-url"
+            class="input skyway-token-input"
+            type="url"
+            placeholder="例: https://your-worker.workers.dev/skyway-token"
+            hidden
+          />
+          <div class="stack">
+            <button type="button" class="btn primary" id="btn-create-room">
+              ルームを建てる
+            </button>
+            <div class="join-row">
+              <input
+                id="input-room-code"
+                class="input"
+                maxlength="6"
+                placeholder="ルームコード（6桁）"
+                autocomplete="off"
+              />
+              <button type="button" class="btn" id="btn-join-room">
+                参加する
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ロビー -->
+      <section id="screen-lobby" class="screen">
+        <div class="panel">
+          <button type="button" class="btn back" id="btn-leave-lobby">← 退出</button>
+          <h2>ルーム</h2>
+          <p class="room-code-line">
+            コード: <span id="lobby-code" class="mono">------</span>
+          </p>
+          <ul id="lobby-players" class="lobby-list"></ul>
+          <div class="lobby-actions stack">
+            <button type="button" class="btn" id="btn-use-saved-deck">
+              保存デッキをサーバーに送る
+            </button>
+            <button type="button" class="btn ghost" id="btn-use-initial-deck">
+              初期デッキで送る
+            </button>
+            <label class="check">
+              <input type="checkbox" id="chk-ready" />
+              準備OK
+            </label>
+          </div>
+          <p class="hint">
+            デッキは20枚・同一カード3枚まで。デッキ構築画面で編集して保存してください。
+          </p>
+        </div>
+      </section>
+
+      <!-- デッキ構築 -->
+      <section id="screen-deck" class="screen">
+        <div class="panel deck-panel">
+          <button type="button" class="btn back" data-back="title">← 戻る</button>
+          <h2>デッキ構築</h2>
+          <p class="deck-meta">
+            <span id="deck-count">0</span> / 20 枚
+            <span id="deck-status" class="deck-status"></span>
+          </p>
+          <div id="deck-slots" class="deck-slots"></div>
+          <div class="catalog-wrap">
+            <h3>カード一覧（クリックで追加）</h3>
+            <div id="catalog-grid" class="catalog-grid"></div>
+          </div>
+          <div class="deck-footer">
+            <button type="button" class="btn ghost" id="btn-deck-clear">
+              空にする
+            </button>
+            <button type="button" class="btn primary" id="btn-deck-save">
+              保存
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 対戦 -->
+      <section id="screen-game" class="screen">
+        <div class="game-layout">
+          <div class="hud opponent">
+            <div class="hud-row">
+              <span>相手</span>
+              <span class="hp"
+                ><span id="opp-hp">100</span> / 100 HP</span
+              >
+            </div>
+            <div class="hud-sub">
+              手札 <span id="opp-hand">0</span> ・ 山
+              <span id="opp-deck">0</span> ・ 捨て
+              <span id="opp-disc">0</span>
+            </div>
+          </div>
+
+          <div class="hud self">
+            <div class="hud-row">
+              <span>あなた</span>
+              <span class="hp"><span id="self-hp">100</span> / 100 HP</span>
+            </div>
+            <div class="hud-sub">
+              山 <span id="self-deck">0</span> ・ 捨て
+              <span id="self-disc">0</span>
+              ・ ターン <span id="turn-no">1</span>
+            </div>
+            <div class="cost-bar" id="cost-bar">
+              コスト: <span id="cost-current">5</span> / 5
+            </div>
+            <div class="turn-banner" id="turn-banner">あなたのターン</div>
+          </div>
+
+          <div id="hand" class="hand"></div>
+
+          <div class="game-actions">
+            <button type="button" class="btn primary" id="btn-end-turn">
+              ターン終了
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 結果 -->
+      <section id="screen-result" class="screen">
+        <div class="panel">
+          <h2 id="result-title">勝敗</h2>
+          <p id="result-msg"></p>
+          <button type="button" class="btn primary" id="btn-result-home">
+            タイトルへ
+          </button>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
