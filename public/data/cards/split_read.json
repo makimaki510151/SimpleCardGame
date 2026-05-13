@@ -4,15 +4,21 @@
   "cost": 5,
   "body": [
     { "t": "交戦力 ", "c": "muted" },
-    { "t": "6", "c": "damage" },
-    { "t": "。相手のHPが ", "c": "muted" },
+    { "t": "4", "c": "damage" },
+    { "t": "。自分のHP ", "c": "muted" },
+    { "t": "2", "c": "heal" },
+    { "t": "。カードを ", "c": "muted" },
+    { "t": "1", "c": "draw" },
+    { "t": " 引く。相手のHPが ", "c": "muted" },
     { "t": "30", "c": "condition" },
     { "t": " 以上ならさらに ", "c": "muted" },
     { "t": "6", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 6 },
+    { "type": "damage", "value": 4 },
+    { "type": "heal", "value": 2 },
+    { "type": "draw", "value": 1 },
     {
       "type": "damageIf",
       "mode": "opponentHpGte",

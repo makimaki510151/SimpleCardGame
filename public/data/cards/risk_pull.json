@@ -1,7 +1,7 @@
 {
   "id": "risk_pull",
   "name": "危険引き",
-  "cost": 0,
+  "cost": 1,
   "body": [
     { "t": " ", "c": "draw" },
     { "t": "2", "c": "draw" },

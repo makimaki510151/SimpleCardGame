@@ -4,11 +4,11 @@
   "cost": 3,
   "body": [
     { "t": "相手に ", "c": "muted" },
-    { "t": "2", "c": "damage" },
+    { "t": "4", "c": "damage" },
     { "t": "。手札が ", "c": "muted" },
     { "t": "4", "c": "condition" },
     { "t": " 枚以上なら追加 ", "c": "muted" },
-    { "t": "2", "c": "damage" },
+    { "t": "8", "c": "damage" },
     { "t": "。カードを ", "c": "muted" },
     { "t": "1", "c": "draw" },
     { "t": " 引き、次の相手ターンのコスト上限を ", "c": "muted" },
@@ -16,10 +16,10 @@
     { "t": " に。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 2 },
+    { "type": "damage", "value": 4 },
     {
       "type": "damageIf",
-      "value": 2,
+      "value": 8,
       "mode": "opponentHandGte",
       "threshold": 4
     },

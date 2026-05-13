@@ -4,22 +4,22 @@
   "cost": 2,
   "body": [
     { "t": "交戦力 ", "c": "muted" },
-    { "t": "2", "c": "damage" },
+    { "t": "4", "c": "damage" },
     { "t": "。自分の手札が ", "c": "muted" },
     { "t": "5", "c": "condition" },
     { "t": " 以上ならさらに ", "c": "muted" },
-    { "t": "2", "c": "damage" },
+    { "t": "5", "c": "damage" },
     { "t": "。カードを ", "c": "muted" },
     { "t": "1", "c": "draw" },
     { "t": " 引く。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 2 },
+    { "type": "damage", "value": 4 },
     {
       "type": "damageIf",
       "mode": "selfHandGte",
       "threshold": 5,
-      "value": 2
+      "value": 5
     },
     { "type": "draw", "value": 1 }
   ]

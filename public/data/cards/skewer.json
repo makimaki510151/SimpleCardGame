@@ -6,7 +6,7 @@
     { "t": "相手の手札が ", "c": "muted" },
     { "t": "4", "c": "condition" },
     { "t": " 以上なら交戦力 ", "c": "muted" },
-    { "t": "2", "c": "damage" },
+    { "t": "4", "c": "damage" },
     { "t": " と ", "c": "muted" },
     { "t": "1", "c": "draw" },
     { "t": " ドロー。", "c": "muted" }
@@ -16,7 +16,7 @@
       "type": "damageIf",
       "mode": "opponentHandGte",
       "threshold": 4,
-      "value": 2
+      "value": 4
     },
     { "type": "draw", "value": 1 }
   ]

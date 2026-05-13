@@ -114,23 +114,38 @@
             </label>
           </div>
           <p class="hint">
-            リストでデッキを選び「保存デッキを送る」で送信（初期は「初期デッキ」）。デッキ構築では複数保存できます（最大16）。
+            リストでデッキを選び「保存デッキを送る」で送信（初期は「初期デッキ」）。デッキ構築は一覧から「編集」で開きます（最大16デッキ）。
           </p>
         </div>
       </section>
 
-      <!-- デッキ構築 -->
+      <!-- デッキ一覧 -->
+      <section id="screen-deck-list" class="screen">
+        <div class="panel deck-list-panel">
+          <button type="button" class="btn back" data-back="title">← 戻る</button>
+          <h2>デッキ</h2>
+          <p class="hint">
+            デッキを選んで「編集」で中身を詰めます。新規は空のまま名前だけ付けて追加できます（最大16デッキ）。
+          </p>
+          <div class="deck-list-toolbar">
+            <button type="button" class="btn primary" id="btn-deck-create-empty">
+              新規デッキ（空）
+            </button>
+          </div>
+          <div id="deck-list-root" class="deck-list-root" aria-label="保存デッキ一覧"></div>
+        </div>
+      </section>
+
+      <!-- デッキ編集 -->
       <section id="screen-deck" class="screen">
         <div class="panel deck-panel">
-          <button type="button" class="btn back" data-back="title">← 戻る</button>
-          <h2>デッキ構築</h2>
+          <button type="button" class="btn back" id="btn-deck-editor-back">
+            ← デッキ一覧
+          </button>
+          <h2>デッキ編集</h2>
           <div class="deck-toolbar">
-            <label>
-              編集中のデッキ
-              <select id="deck-editor-select"></select>
-            </label>
-            <label>
-              名前
+            <label class="deck-name-label">
+              デッキ名
               <input
                 type="text"
                 id="deck-name-input"
@@ -140,20 +155,47 @@
                 autocomplete="off"
               />
             </label>
-            <button type="button" class="btn ghost" id="btn-deck-new">
-              新規
+            <button type="button" class="btn ghost" id="btn-deck-copy">
+              このデッキをコピー
             </button>
-            <button type="button" class="btn ghost" id="btn-deck-delete">
-              削除
+            <button type="button" class="btn ghost" id="btn-deck-delete-editor">
+              このデッキを削除
             </button>
           </div>
           <p class="deck-meta">
             <span id="deck-count">0</span> / 20 枚
             <span id="deck-status" class="deck-status"></span>
           </p>
-          <div id="deck-slots" class="deck-slots"></div>
+          <div class="deck-strip-section">
+            <h3 class="deck-strip-heading">デッキ内容（横スクロール）</h3>
+            <div id="deck-strip" class="deck-strip deck-strip-scroll" aria-label="デッキのカード内訳"></div>
+          </div>
           <div class="catalog-wrap">
-            <h3>カード一覧（クリックで追加）</h3>
+            <div class="catalog-toolbar">
+              <h3>カード一覧</h3>
+              <div class="catalog-filters">
+                <input
+                  type="search"
+                  id="catalog-filter-text"
+                  class="input catalog-filter-input"
+                  placeholder="名前・説明で絞り込み"
+                  autocomplete="off"
+                />
+                <label class="catalog-filter-cost">
+                  コスト
+                  <select id="catalog-filter-cost" class="select-input">
+                    <option value="all">すべて</option>
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <p class="hint catalog-hint">カードをクリックでデッキに1枚追加（同種3枚・合計20枚まで）</p>
             <div id="catalog-grid" class="catalog-grid"></div>
           </div>
           <div class="deck-footer">

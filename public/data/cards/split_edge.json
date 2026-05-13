@@ -8,14 +8,14 @@
     { "t": " 回復。相手の手札が ", "c": "muted" },
     { "t": "3", "c": "condition" },
     { "t": " 枚以上なら ", "c": "muted" },
-    { "t": "5", "c": "damage" },
+    { "t": "11", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
     { "type": "heal", "value": 2 },
     {
       "type": "damageIf",
-      "value": 5,
+      "value": 11,
       "mode": "opponentHandGte",
       "threshold": 3
     }

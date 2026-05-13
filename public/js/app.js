@@ -1,5 +1,3 @@
-const COST_MARK = ["", "①", "②", "③", "④", "⑤"];
-
 const LS_DECK_LEGACY = "scg_deck_v1";
 const LS_DECKS = "scg_decks_v1";
 const LS_EDITOR_DECK = "scg_editor_deck_id";
@@ -142,11 +140,52 @@ function toast(msg) {
 function renderCardBody(container, card) {
   container.textContent = "";
   const parts = card.body || [];
-  for (const seg of parts) {
+  const eff = card.effects || [];
+  const hasLate = eff.some((e) => e.type === "attackIfFirstLockerResolve");
+  const hasIf = eff.some(
+    (e) => e.type === "damageIf" || e.type === "healIf"
+  );
+  let splitIdx = -1;
+  if (hasLate) {
+    splitIdx = parts.findIndex((p) => (p.t || "").includes("先に確定"));
+  }
+  if (splitIdx < 0 && hasIf) {
+    splitIdx = parts.findIndex((s) => s.c === "condition");
+  }
+  if (splitIdx < 0) {
+    splitIdx = parts.findIndex((p) => (p.t || "").includes("無効化"));
+  }
+
+  function appendSpan(seg) {
     const span = document.createElement("span");
     span.textContent = seg.t;
     span.className = `seg-${seg.c || "muted"}`;
-    container.appendChild(span);
+    return span;
+  }
+
+  if (splitIdx >= 0) {
+    for (let i = 0; i < splitIdx; i++) {
+      container.appendChild(appendSpan(parts[i]));
+    }
+    const wrap = document.createElement("div");
+    wrap.className = "card-body-bonus-wrap";
+    const lab = document.createElement("div");
+    lab.className = "card-body-bonus-label";
+    lab.textContent = hasLate
+      ? "追加効果（交戦時）"
+      : (card.effects || []).some((e) => e.type === "negateOpponentNextPlay")
+        ? "追加効果（妨害）"
+        : "追加効果（条件）";
+    wrap.appendChild(lab);
+    for (let i = splitIdx; i < parts.length; i++) {
+      wrap.appendChild(appendSpan(parts[i]));
+    }
+    container.appendChild(wrap);
+    return;
+  }
+
+  for (const seg of parts) {
+    container.appendChild(appendSpan(seg));
   }
 }
 
@@ -168,7 +207,7 @@ function makeCardFace(card, { wide } = {}) {
   const cost = document.createElement("div");
   cost.className = "card-cost";
   const c = Math.min(5, Math.max(0, card.cost | 0));
-  cost.textContent = COST_MARK[c] || String(c);
+  cost.textContent = String(c);
 
   headPanel.append(title, cost);
 
@@ -248,22 +287,7 @@ function setEditorDeckId(id) {
 }
 
 function fillDeckEditorSelect() {
-  const sel = document.getElementById("deck-editor-select");
-  if (!sel) return;
-  const cur = getEditorDeckId();
-  sel.textContent = "";
-  for (const d of loadDecksList()) {
-    const op = document.createElement("option");
-    op.value = d.id;
-    op.textContent = d.name;
-    sel.appendChild(op);
-  }
-  if (cur && [...sel.options].some((o) => o.value === cur)) {
-    sel.value = cur;
-  } else if (sel.options[0]) {
-    sel.value = sel.options[0].value;
-    setEditorDeckId(sel.value);
-  }
+  fillLobbyDeckSelect();
 }
 
 function fillLobbyDeckSelect() {
@@ -300,16 +324,20 @@ function lobbyChosenDeckIds() {
   return d.cardIds.slice();
 }
 
-/** 互換: 先頭の保存デッキの cardIds */
+/** 互換: 送信可能な（20枚の）保存デッキがあればその cardIds */
 function loadSavedDeck() {
-  const d = loadDecksList()[0];
-  if (d?.cardIds?.length === 20) return d.cardIds.slice();
+  for (const d of loadDecksList()) {
+    if (d?.cardIds?.length === 20) return d.cardIds.slice();
+  }
   return null;
 }
 
-function validateDeckClient(ids) {
-  if (!Array.isArray(ids) || ids.length !== 20) {
-    return { ok: false, reason: "デッキはちょうど20枚である必要があります。" };
+function validateDeckCounts(ids) {
+  if (!Array.isArray(ids)) {
+    return { ok: false, reason: "デッキデータが不正です。" };
+  }
+  if (ids.length > 20) {
+    return { ok: false, reason: "20枚までです。" };
   }
   const counts = {};
   for (const cid of ids) {
@@ -322,6 +350,13 @@ function validateDeckClient(ids) {
     }
   }
   return { ok: true };
+}
+
+function validateDeckClient(ids) {
+  if (!Array.isArray(ids) || ids.length !== 20) {
+    return { ok: false, reason: "デッキはちょうど20枚である必要があります。" };
+  }
+  return validateDeckCounts(ids);
 }
 
 function onSkyWayLobby(msg) {
@@ -383,6 +418,8 @@ function autoSendDeckIfPossible() {
 let lastBattleLogSeq = 0;
 let lastSelfAttack = -1;
 let lastOppAttack = -1;
+let duelPrevSelfHp = null;
+let duelPrevOppHp = null;
 
 function applyDuelZoomClass() {
   const g = document.getElementById("screen-game");
@@ -450,6 +487,36 @@ function onGameState(state) {
   lastGameYouAre = state.youAre;
   $("#opp-hp").textContent = String(state.opponent.hp);
   $("#self-hp").textContent = String(state.you.hp);
+  const selfHp = state.you.hp | 0;
+  const oppHp = state.opponent.hp | 0;
+  if (duelPrevSelfHp !== null && selfHp < duelPrevSelfHp) {
+    const hpEl = $("#self-hp");
+    const field = document.querySelector(".duel-self-field");
+    hpEl?.classList.add("hp-hit");
+    field?.classList.add("duel-field-damage");
+    clearTimeout(hpEl?._hitTm);
+    if (hpEl) {
+      hpEl._hitTm = setTimeout(() => {
+        hpEl.classList.remove("hp-hit");
+        field?.classList.remove("duel-field-damage");
+      }, 720);
+    }
+  }
+  if (duelPrevOppHp !== null && oppHp < duelPrevOppHp) {
+    const hpEl = $("#opp-hp");
+    const field = document.querySelector(".duel-opp-field");
+    hpEl?.classList.add("hp-hit");
+    field?.classList.add("duel-field-damage");
+    clearTimeout(hpEl?._hitTm);
+    if (hpEl) {
+      hpEl._hitTm = setTimeout(() => {
+        hpEl.classList.remove("hp-hit");
+        field?.classList.remove("duel-field-damage");
+      }, 720);
+    }
+  }
+  duelPrevSelfHp = selfHp;
+  duelPrevOppHp = oppHp;
   const maxHp = state.you.maxHp ?? state.opponent.maxHp ?? 50;
   document.querySelectorAll(".duel-hp-max").forEach((el) => {
     el.textContent = `/${maxHp}`;
@@ -658,6 +725,8 @@ function onGameOver(payload) {
   lastBattleLogSeq = 0;
   lastSelfAttack = -1;
   lastOppAttack = -1;
+  duelPrevSelfHp = null;
+  duelPrevOppHp = null;
   const youWin = payload.winnerSlot === lastGameYouAre;
   showScreen("screen-result");
   $("#result-title").textContent = youWin ? "勝利！" : "敗北…";
@@ -715,25 +784,147 @@ async function fetchCatalog() {
   }
 }
 
+function orderedUniqueDeckIds(ids) {
+  const seen = new Set();
+  const order = [];
+  for (const id of ids) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      order.push(id);
+    }
+  }
+  return order;
+}
+
+function cardSearchBlob(card) {
+  if (!card) return "";
+  const bits = [card.id, card.name];
+  for (const seg of card.body || []) {
+    if (seg && seg.t) bits.push(seg.t);
+  }
+  return bits.join(" ").toLowerCase();
+}
+
+function renderDeckListScreen() {
+  const root = $("#deck-list-root");
+  if (!root) return;
+  root.textContent = "";
+  const decks = loadDecksList();
+  for (const d of decks) {
+    const ids = Array.isArray(d.cardIds) ? d.cardIds : [];
+    const row = document.createElement("div");
+    row.className = "deck-list-row";
+    const meta = document.createElement("div");
+    meta.className = "deck-list-meta";
+    const name = document.createElement("div");
+    name.className = "deck-list-name";
+    name.textContent = d.name || "無題";
+    const sub = document.createElement("div");
+    sub.className = "deck-list-sub";
+    const v = validateDeckClient(ids);
+    sub.textContent = v.ok ? "20 / 20 枚（送信可）" : `${ids.length} / 20 枚`;
+    meta.append(name, sub);
+    const actions = document.createElement("div");
+    actions.className = "deck-list-actions";
+    const bEdit = document.createElement("button");
+    bEdit.type = "button";
+    bEdit.className = "btn";
+    bEdit.textContent = "編集";
+    bEdit.dataset.deckAct = "edit";
+    bEdit.dataset.deckId = d.id;
+    const bCopy = document.createElement("button");
+    bCopy.type = "button";
+    bCopy.className = "btn ghost";
+    bCopy.textContent = "コピー";
+    bCopy.dataset.deckAct = "copy";
+    bCopy.dataset.deckId = d.id;
+    const bDel = document.createElement("button");
+    bDel.type = "button";
+    bDel.className = "btn ghost";
+    bDel.textContent = "削除";
+    bDel.dataset.deckAct = "delete";
+    bDel.dataset.deckId = d.id;
+    if (decks.length <= 1) bDel.disabled = true;
+    actions.append(bEdit, bCopy, bDel);
+    row.append(meta, actions);
+    root.appendChild(row);
+  }
+}
+
 function renderDeckBuilder() {
-  const slots = $("#deck-slots");
+  if (!document.getElementById("screen-deck")?.classList.contains("active")) {
+    return;
+  }
+  const strip = $("#deck-strip");
   const grid = $("#catalog-grid");
-  slots.textContent = "";
-  grid.textContent = "";
+  if (strip) strip.textContent = "";
+  if (grid) grid.textContent = "";
 
-  currentDeck.forEach((id, idx) => {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "deck-chip";
-    chip.textContent = `${catalogById[id]?.name || id} ×`;
-    chip.addEventListener("click", () => {
-      currentDeck.splice(idx, 1);
-      renderDeckBuilder();
-    });
-    slots.appendChild(chip);
-  });
+  if (strip) {
+    const order = orderedUniqueDeckIds(currentDeck);
+    for (const cid of order) {
+      const n = currentDeck.filter((x) => x === cid).length;
+      const def = catalogById[cid];
+      if (!def) continue;
+      const wrap = document.createElement("div");
+      wrap.className = "deck-strip-item";
+      const face = makeCardFace(def, { wide: true });
+      face.classList.add("deck-strip-card");
+      const badge = document.createElement("span");
+      badge.className = "deck-strip-count";
+      badge.textContent = `×${n}`;
+      const row = document.createElement("div");
+      row.className = "deck-strip-controls";
+      const minus = document.createElement("button");
+      minus.type = "button";
+      minus.className = "btn ghost deck-strip-btn";
+      minus.textContent = "−1";
+      minus.addEventListener("click", () => {
+        for (let k = currentDeck.length - 1; k >= 0; k--) {
+          if (currentDeck[k] === cid) {
+            currentDeck.splice(k, 1);
+            break;
+          }
+        }
+        renderDeckBuilder();
+      });
+      const plus = document.createElement("button");
+      plus.type = "button";
+      plus.className = "btn ghost deck-strip-btn";
+      plus.textContent = "+1";
+      const atCap = n >= 3 || currentDeck.length >= 20;
+      plus.disabled = atCap;
+      plus.addEventListener("click", () => {
+        const counts = {};
+        for (const x of currentDeck) counts[x] = (counts[x] || 0) + 1;
+        if ((counts[cid] || 0) >= 3) {
+          toast("同じカードは3枚までです");
+          return;
+        }
+        if (currentDeck.length >= 20) {
+          toast("20枚までです");
+          return;
+        }
+        currentDeck.push(cid);
+        renderDeckBuilder();
+      });
+      row.append(minus, plus);
+      wrap.append(face, badge, row);
+      strip.appendChild(wrap);
+    }
+  }
 
-  const ids = Object.keys(catalogById).sort();
+  const q = ($("#catalog-filter-text")?.value || "").trim().toLowerCase();
+  const costF = $("#catalog-filter-cost")?.value || "all";
+  const ids = Object.keys(catalogById)
+    .filter((id) => {
+      const card = catalogById[id];
+      const c = card.cost | 0;
+      if (costF !== "all" && String(c) !== costF) return false;
+      if (!q) return true;
+      return cardSearchBlob(card).includes(q);
+    })
+    .sort();
   for (const id of ids) {
     const card = catalogById[id];
     const face = makeCardFace(card, { wide: true });
@@ -756,16 +947,20 @@ function renderDeckBuilder() {
 
   $("#deck-count").textContent = String(currentDeck.length);
   const st = $("#deck-status");
-  const v = validateDeckClient(currentDeck);
+  const rowOk = validateDeckCounts(currentDeck);
+  const full = validateDeckClient(currentDeck);
   if (currentDeck.length === 0) {
     st.textContent = "";
     st.className = "deck-status";
-  } else if (v.ok) {
+  } else if (!rowOk.ok) {
+    st.textContent = `（${rowOk.reason}）`;
+    st.className = "deck-status bad";
+  } else if (full.ok) {
     st.textContent = "（送信可能）";
     st.className = "deck-status ok";
   } else {
-    st.textContent = `（${v.reason}）`;
-    st.className = "deck-status bad";
+    st.textContent = `（あと ${20 - currentDeck.length} 枚で完成）`;
+    st.className = "deck-status";
   }
 }
 
@@ -777,7 +972,7 @@ function wireUi() {
         showScreen("screen-online-menu");
       }
       if (target === "deck") {
-        openDeckBuilder();
+        openDeckList();
       }
     });
   });
@@ -1010,65 +1205,132 @@ function wireUi() {
     }
     decks[idx] = { ...decks[idx], name, cardIds: currentDeck.slice() };
     saveDecksListRaw(decks);
-    fillDeckEditorSelect();
+    fillLobbyDeckSelect();
     syncDeckNameInput();
     toast("デッキを保存しました");
     renderDeckBuilder();
   });
 
-  $("#deck-editor-select")?.addEventListener("change", (e) => {
-    setEditorDeckId(e.target.value);
-    syncDeckNameInput();
-    const d = loadDecksList().find((x) => x.id === e.target.value);
-    currentDeck =
-      d?.cardIds?.length === 20
-        ? d.cardIds.slice()
-        : initialDeckIds.length === 20
-          ? initialDeckIds.slice()
-          : [];
-    renderDeckBuilder();
+  $("#btn-deck-editor-back")?.addEventListener("click", () => {
+    openDeckList();
   });
 
-  $("#btn-deck-new")?.addEventListener("click", () => {
+  $("#btn-deck-create-empty")?.addEventListener("click", () => {
     const decks = loadDecksList();
     if (decks.length >= MAX_SAVED_DECKS) {
       toast(`保存は${MAX_SAVED_DECKS}個までです`);
       return;
     }
+    const nameIn = window.prompt("新しいデッキの名前", `デッキ${decks.length + 1}`);
+    if (nameIn === null) return;
+    const name = (nameIn || "").trim().slice(0, 24) || `デッキ${decks.length + 1}`;
     const id = newDeckId();
-    const base =
-      initialDeckIds.length === 20 ? initialDeckIds.slice() : [];
-    decks.push({ id, name: `新規デッキ${decks.length + 1}`, cardIds: base });
+    decks.push({ id, name, cardIds: [] });
     saveDecksListRaw(decks);
     setEditorDeckId(id);
-    fillDeckEditorSelect();
-    syncDeckNameInput();
-    currentDeck = base.slice();
-    renderDeckBuilder();
-    toast("新規デッキを作成しました");
+    fillLobbyDeckSelect();
+    renderDeckListScreen();
+    openDeckEditor();
+    toast("空のデッキを作成しました");
   });
 
-  $("#btn-deck-delete")?.addEventListener("click", () => {
+  $("#deck-list-root")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-deck-act]");
+    if (!btn) return;
+    const act = btn.getAttribute("data-deck-act");
+    const did = btn.getAttribute("data-deck-id");
+    if (!did) return;
+    const decks = loadDecksList();
+    const d = decks.find((x) => x.id === did);
+    if (!d) return;
+    if (act === "edit") {
+      setEditorDeckId(did);
+      openDeckEditor();
+    } else if (act === "copy") {
+      if (decks.length >= MAX_SAVED_DECKS) {
+        toast(`保存は${MAX_SAVED_DECKS}個までです`);
+        return;
+      }
+      const nameIn = window.prompt("コピーの名前", `${d.name}のコピー`);
+      if (nameIn === null) return;
+      const name =
+        (nameIn || "").trim().slice(0, 24) || `${d.name}のコピー`;
+      const id = newDeckId();
+      const cardIds = Array.isArray(d.cardIds) ? d.cardIds.slice() : [];
+      decks.push({ id, name, cardIds });
+      saveDecksListRaw(decks);
+      setEditorDeckId(id);
+      fillLobbyDeckSelect();
+      renderDeckListScreen();
+      openDeckEditor();
+      toast("デッキをコピーしました");
+    } else if (act === "delete") {
+      if (decks.length <= 1) {
+        toast("最後の1つは削除できません");
+        return;
+      }
+      if (!window.confirm(`「${d.name}」を削除しますか？`)) return;
+      const next = decks.filter((x) => x.id !== did);
+      saveDecksListRaw(next);
+      if (getEditorDeckId() === did) {
+        setEditorDeckId(next[0].id);
+      }
+      fillLobbyDeckSelect();
+      renderDeckListScreen();
+      toast("デッキを削除しました");
+    }
+  });
+
+  $("#btn-deck-copy")?.addEventListener("click", () => {
+    let decks = loadDecksList();
+    if (decks.length >= MAX_SAVED_DECKS) {
+      toast(`保存は${MAX_SAVED_DECKS}個までです`);
+      return;
+    }
+    const cur = decks.find((x) => x.id === getEditorDeckId());
+    const nameIn = window.prompt("コピーの名前", `${cur?.name || "デッキ"}のコピー`);
+    if (nameIn === null) return;
+    const name =
+      (nameIn || "").trim().slice(0, 24) || `${cur?.name || "デッキ"}のコピー`;
+    const id = newDeckId();
+    const cardIds = currentDeck.slice();
+    decks.push({ id, name, cardIds });
+    saveDecksListRaw(decks);
+    setEditorDeckId(id);
+    fillLobbyDeckSelect();
+    syncDeckNameInput();
+    renderDeckBuilder();
+    toast("コピーを作成して切り替えました");
+  });
+
+  $("#btn-deck-delete-editor")?.addEventListener("click", () => {
     const decks = loadDecksList();
     if (decks.length <= 1) {
       toast("最後の1つは削除できません");
       return;
     }
     const id = getEditorDeckId();
-    const next = decks.filter((d) => d.id !== id);
+    const d = decks.find((x) => x.id === id);
+    if (!window.confirm(`「${d?.name || ""}」を削除しますか？`)) return;
+    const next = decks.filter((x) => x.id !== id);
     saveDecksListRaw(next);
     setEditorDeckId(next[0].id);
-    fillDeckEditorSelect();
+    fillLobbyDeckSelect();
+    const nd = next[0];
+    currentDeck = Array.isArray(nd?.cardIds) ? nd.cardIds.slice() : [];
     syncDeckNameInput();
-    const d = next[0];
-    currentDeck =
-      d?.cardIds?.length === 20
-        ? d.cardIds.slice()
-        : initialDeckIds.length === 20
-          ? initialDeckIds.slice()
-          : [];
     renderDeckBuilder();
+    openDeckList();
+    toast("デッキを削除しました");
   });
+
+  let catalogFilterTm = 0;
+  const refilterCatalog = () => {
+    clearTimeout(catalogFilterTm);
+    catalogFilterTm = setTimeout(() => renderDeckBuilder(), 160);
+  };
+  $("#catalog-filter-text")?.addEventListener("input", refilterCatalog);
+  $("#catalog-filter-cost")?.addEventListener("change", refilterCatalog);
 }
 
 function syncDeckNameInput() {
@@ -1079,7 +1341,7 @@ function syncDeckNameInput() {
   inp.value = d?.name || "";
 }
 
-async function openDeckBuilder() {
+async function openDeckList() {
   if (!Object.keys(catalogById).length) {
     try {
       await fetchCatalog();
@@ -1089,18 +1351,31 @@ async function openDeckBuilder() {
     }
   }
   loadDecksList();
-  fillDeckEditorSelect();
-  syncDeckNameInput();
+  fillLobbyDeckSelect();
+  renderDeckListScreen();
+  showScreen("screen-deck-list");
+}
+
+async function openDeckEditor() {
+  if (!Object.keys(catalogById).length) {
+    try {
+      await fetchCatalog();
+    } catch {
+      toast("カード一覧の取得に失敗しました");
+      return;
+    }
+  }
+  loadDecksList();
   const id = getEditorDeckId();
   const d = loadDecksList().find((x) => x.id === id);
-  currentDeck =
-    d?.cardIds?.length === 20
-      ? d.cardIds.slice()
-      : initialDeckIds.length === 20
-        ? initialDeckIds.slice()
-        : [];
+  currentDeck = Array.isArray(d?.cardIds) ? d.cardIds.slice() : [];
+  syncDeckNameInput();
   showScreen("screen-deck");
   renderDeckBuilder();
+}
+
+async function openDeckBuilder() {
+  await openDeckList();
 }
 
 window.addEventListener("DOMContentLoaded", async () => {

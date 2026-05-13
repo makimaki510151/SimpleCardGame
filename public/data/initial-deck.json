@@ -1,25 +1,25 @@
 {
   "description": "全員が利用できる初期デッキ（20枚・各カード最大3枚）",
   "cardIds": [
-    "feint",
+    "low_guard",
+    "needle",
+    "needle",
+    "skewer",
+    "skewer",
+    "mirror_blow",
+    "mirror_blow",
     "feint",
     "bind_tick",
-    "low_guard",
-    "pierce_window",
-    "risk_pull",
-    "needle",
-    "needle",
-    "skewer",
-    "skewer",
-    "mirror_blow",
-    "mirror_blow",
     "gambit_surge",
     "bandage",
     "twin_line",
-    "split_read",
     "chip",
+    "slash",
+    "slash",
     "mind_fray",
     "potion",
-    "vanguard_echo"
+    "equinox",
+    "chaos_bolt",
+    "split_read"
   ]
 }

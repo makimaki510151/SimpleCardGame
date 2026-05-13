@@ -5,12 +5,15 @@
   "body": [
     { "t": " ", "c": "draw" },
     { "t": "1", "c": "draw" },
-    { "t": " ドロー。代償として自分のHP ", "c": "muted" },
+    { "t": " ドロー。自分のHP ", "c": "muted" },
     { "t": "1", "c": "damage" },
-    { "t": "。", "c": "muted" }
+    { "t": "。相手の次のプレイを ", "c": "muted" },
+    { "t": "1", "c": "damage" },
+    { "t": " 回無効化。", "c": "muted" }
   ],
   "effects": [
     { "type": "draw", "value": 1 },
-    { "type": "damageSelf", "value": 1 }
+    { "type": "damageSelf", "value": 1 },
+    { "type": "negateOpponentNextPlay", "value": 1 }
   ]
 }

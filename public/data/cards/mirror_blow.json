@@ -4,20 +4,20 @@
   "cost": 1,
   "body": [
     { "t": "交戦力 ", "c": "muted" },
-    { "t": "1", "c": "damage" },
+    { "t": "2", "c": "damage" },
     { "t": "。相手のHPが ", "c": "muted" },
     { "t": "25", "c": "condition" },
     { "t": " 以上ならさらに ", "c": "muted" },
-    { "t": "2", "c": "damage" },
+    { "t": "3", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 1 },
+    { "type": "damage", "value": 2 },
     {
       "type": "damageIf",
       "mode": "opponentHpGte",
       "threshold": 25,
-      "value": 2
+      "value": 3
     }
   ]
 }

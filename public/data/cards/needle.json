@@ -4,8 +4,8 @@
   "cost": 1,
   "body": [
     { "t": "交戦力 ", "c": "muted" },
-    { "t": "3", "c": "damage" },
+    { "t": "5", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
-  "effects": [{ "type": "damage", "value": 3 }]
+  "effects": [{ "type": "damage", "value": 5 }]
 }

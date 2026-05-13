@@ -1467,3 +1467,211 @@ h3 {
     font-size: clamp(1.35rem, 6vw, 1.95rem);
   }
 }
+
+/* 被ダメージ演出 */
+.duel-hp-num.hp-hit {
+  animation: scg-hp-hit 0.55s ease-out;
+  color: #ff7b72;
+  text-shadow: 0 0 18px rgba(248, 81, 73, 0.85);
+}
+
+.duel-opp-field.duel-field-damage,
+.duel-self-field.duel-field-damage {
+  animation: scg-field-shake 0.45s ease-out;
+  box-shadow: inset 0 0 0 2px rgba(248, 81, 73, 0.45);
+}
+
+@keyframes scg-hp-hit {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes scg-field-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+/* カード本文：追加効果ブロック */
+.card-body-bonus-wrap {
+  margin-top: 0.35rem;
+  padding: 0.32rem 0.38rem 0.38rem;
+  border-radius: 8px;
+  border: 1px dashed rgba(210, 168, 255, 0.55);
+  background: rgba(88, 166, 255, 0.06);
+}
+
+.card-body-bonus-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #d2a8ff;
+  margin-bottom: 0.22rem;
+}
+
+/* デッキ一覧 */
+.deck-list-panel .deck-list-toolbar {
+  margin: 0.75rem 0 1rem;
+}
+
+.deck-list-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.deck-list-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #0d1117;
+}
+
+.deck-list-meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.deck-list-name {
+  font-weight: 700;
+  font-size: 1.02rem;
+}
+
+.deck-list-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 0.12rem;
+}
+
+.deck-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* デッキ編集：内訳ストリップ */
+.deck-strip-section {
+  margin: 0.5rem 0 1rem;
+}
+
+.deck-strip-heading {
+  font-size: 0.88rem;
+  margin: 0 0 0.35rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.deck-strip-scroll {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.65rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.45rem 0.2rem 0.55rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(88, 166, 255, 0.45) rgba(13, 17, 23, 0.98);
+}
+
+.deck-strip-item {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.28rem;
+  width: clamp(118px, 28vw, 148px);
+}
+
+.deck-strip-card.card-face.wide {
+  width: 100%;
+  max-width: 148px;
+}
+
+.deck-strip-count {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #79c0ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.deck-strip-controls {
+  display: flex;
+  gap: 0.28rem;
+}
+
+.deck-strip-btn {
+  font-size: 0.72rem;
+  padding: 0.22rem 0.45rem;
+}
+
+.catalog-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.35rem;
+}
+
+.catalog-toolbar h3 {
+  margin: 0;
+}
+
+.catalog-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.catalog-filter-input {
+  min-width: min(100%, 220px);
+}
+
+.catalog-filter-cost {
+  font-size: 0.78rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.catalog-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+}
+
+.deck-name-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  min-width: min(100%, 280px);
+  flex: 1 1 auto;
+}

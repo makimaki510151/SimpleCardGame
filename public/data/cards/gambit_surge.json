@@ -10,7 +10,7 @@
     { "t": " 枚ランダムで捨てる。自分の手札が ", "c": "muted" },
     { "t": "4", "c": "condition" },
     { "t": " 枚以上なら相手に ", "c": "muted" },
-    { "t": "3", "c": "damage" },
+    { "t": "6", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
@@ -18,7 +18,7 @@
     { "type": "discardSelf", "value": 1 },
     {
       "type": "damageIf",
-      "value": 3,
+      "value": 6,
       "mode": "selfHandGte",
       "threshold": 4
     }
