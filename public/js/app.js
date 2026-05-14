@@ -337,7 +337,10 @@ function renderCardBody(container, card, duelCtx) {
   else badge.textContent = "対戦外";
   wrap.appendChild(badge);
 
-  appendCardBodyParts(wrap, parts, bonusStart, parts.length);
+  const bonusFlow = document.createElement("div");
+  bonusFlow.className = "card-body-flow";
+  appendCardBodyParts(bonusFlow, parts, bonusStart, parts.length);
+  wrap.appendChild(bonusFlow);
   container.appendChild(wrap);
 }
 

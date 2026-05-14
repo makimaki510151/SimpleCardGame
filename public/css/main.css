@@ -437,6 +437,24 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
+/** 追加効果ブロック内：flex子に span を直置きすると1span=1行になるため、本文はこの1ブロックにまとめる */
+.card-body-flow {
+  display: block;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: loose;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.card-body-flow > span {
+  display: inline;
+  vertical-align: baseline;
+  line-height: inherit;
+}
+
 .card-face.wide .card-inner {
   gap: 0.32rem;
 }
@@ -1721,7 +1739,6 @@ h3 {
   align-items: stretch;
   gap: 0.08rem;
   min-width: 0;
-  overflow-x: hidden;
 }
 
 .card-body-bonus-label {
