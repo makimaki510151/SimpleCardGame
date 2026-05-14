@@ -1,0 +1,20 @@
+{
+  "id": "glut_hammer",
+  "name": "満腹の槌",
+  "cost": 2,
+  "body": [
+    { "t": "相手手札", "c": "muted" },
+    { "t": "4", "c": "condition" },
+    { "t": "枚以上時、交戦力", "c": "muted" },
+    { "t": "9", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    {
+      "type": "damageIf",
+      "mode": "opponentHandGte",
+      "threshold": 4,
+      "value": 9
+    }
+  ]
+}

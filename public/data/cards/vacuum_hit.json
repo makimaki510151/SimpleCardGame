@@ -1,0 +1,20 @@
+{
+  "id": "vacuum_hit",
+  "name": "真空の一撃",
+  "cost": 0,
+  "body": [
+    { "t": "相手手札", "c": "muted" },
+    { "t": "1", "c": "condition" },
+    { "t": "枚以下時、交戦力", "c": "muted" },
+    { "t": "7", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    {
+      "type": "damageIf",
+      "mode": "opponentHandLte",
+      "threshold": 1,
+      "value": 7
+    }
+  ]
+}

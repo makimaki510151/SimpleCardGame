@@ -1,0 +1,28 @@
+{
+  "id": "brawl_gauge",
+  "name": "喧嘩目盛り",
+  "cost": 2,
+  "body": [
+    { "t": "相手交戦力", "c": "muted" },
+    { "t": "6", "c": "condition" },
+    { "t": "以上時、交戦力", "c": "muted" },
+    { "t": "10", "c": "damage" },
+    { "t": "と自身ダメージ", "c": "muted" },
+    { "t": "4", "c": "damage" },
+    { "t": "（同条件）。", "c": "muted" }
+  ],
+  "effects": [
+    {
+      "type": "damageIf",
+      "mode": "opponentAttackStockGte",
+      "threshold": 6,
+      "value": 10
+    },
+    {
+      "type": "damageSelfIf",
+      "mode": "opponentAttackStockGte",
+      "threshold": 6,
+      "value": 4
+    }
+  ]
+}

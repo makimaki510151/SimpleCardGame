@@ -1,0 +1,23 @@
+{
+  "id": "wide_net",
+  "name": "広網",
+  "cost": 3,
+  "body": [
+    { "t": "交戦力", "c": "muted" },
+    { "t": "2", "c": "damage" },
+    { "t": "，相手手札", "c": "muted" },
+    { "t": "6", "c": "condition" },
+    { "t": "枚以上時、交戦力", "c": "muted" },
+    { "t": "11", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "damage", "value": 2 },
+    {
+      "type": "damageIf",
+      "mode": "opponentHandGte",
+      "threshold": 6,
+      "value": 11
+    }
+  ]
+}

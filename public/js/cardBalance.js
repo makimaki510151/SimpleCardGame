@@ -46,6 +46,9 @@
         case "damageSelf":
           selfDisc += v;
           break;
+        case "damageSelfIf":
+          selfDisc += v;
+          break;
         default:
           break;
       }
@@ -92,7 +95,9 @@
       const hasFirst = (id) =>
         (byId[id].effects || []).some((e) => e.type === "attackIfFirstLockerResolve");
       const hasDamageIf = (id) =>
-        (byId[id].effects || []).some((e) => e.type === "damageIf");
+        (byId[id].effects || []).some(
+          (e) => e.type === "damageIf" || e.type === "damageSelfIf"
+        );
       const hasHealIf = (id) =>
         (byId[id].effects || []).some((e) => e.type === "healIf");
       const pairs = [];

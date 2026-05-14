@@ -1,0 +1,20 @@
+{
+  "id": "crow_bill",
+  "name": "烏の請求書",
+  "cost": 2,
+  "body": [
+    { "t": "相手手札", "c": "muted" },
+    { "t": "5", "c": "condition" },
+    { "t": "枚以上時、交戦力", "c": "muted" },
+    { "t": "12", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    {
+      "type": "damageIf",
+      "mode": "opponentHandGte",
+      "threshold": 5,
+      "value": 12
+    }
+  ]
+}

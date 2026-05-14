@@ -4,6 +4,8 @@ const LS_EDITOR_DECK = "scg_editor_deck_id";
 const LS_LOBBY_DECK = "scg_lobby_deck_id";
 const MAX_SAVED_DECKS = 16;
 const SS_DUEL_ZOOM_LG = "scg_duel_zoom_lg";
+/** 1デッキあたり同一カードの上限枚数 */
+const MAX_COPIES_PER_CARD = 2;
 
 let catalogById = {};
 let initialDeckIds = [];
@@ -156,6 +158,12 @@ function actorHpVal(state, slot) {
   return slot === state.youAre ? state.you.hp | 0 : state.opponent.hp | 0;
 }
 
+function actorAttackStock(state, slot) {
+  return slot === state.youAre
+    ? state.you.attackStock | 0
+    : state.opponent.attackStock | 0;
+}
+
 function evalIfEffectForActor(effect, state, actorSlot) {
   const mode = effect.mode;
   const oppSlot = 1 - actorSlot;
@@ -163,6 +171,7 @@ function evalIfEffectForActor(effect, state, actorSlot) {
   const oppHand = actorHandLen(state, oppSlot);
   const selfHp = actorHpVal(state, actorSlot);
   const oppHp = actorHpVal(state, oppSlot);
+  const oppAtk = actorAttackStock(state, oppSlot);
   const th = effect.threshold | 0;
   const lastPlayBySlot = state.lastPlayBySlot || [null, null];
   switch (mode) {
@@ -178,6 +187,10 @@ function evalIfEffectForActor(effect, state, actorSlot) {
       return oppHand <= th;
     case "opponentHpLte":
       return oppHp <= th;
+    case "opponentAttackStockGte":
+      return oppAtk >= th;
+    case "opponentAttackStockLte":
+      return oppAtk <= th;
     case "opponentLastCardIdIn": {
       const ids = Array.isArray(effect.cardIds) ? effect.cardIds : [];
       const last = lastPlayBySlot[oppSlot];
@@ -195,13 +208,14 @@ function aggregateBonusVisual(card, duelCtx) {
   const tracked = eff.filter(
     (e) =>
       e.type === "damageIf" ||
+      e.type === "damageSelfIf" ||
       e.type === "healIf" ||
       e.type === "attackIfFirstLockerResolve"
   );
   if (!tracked.length) return "neutral";
   const marks = [];
   for (const e of tracked) {
-    if (e.type === "damageIf" || e.type === "healIf") {
+    if (e.type === "damageIf" || e.type === "healIf" || e.type === "damageSelfIf") {
       marks.push(evalIfEffectForActor(e, state, actorSlot) ? "met" : "unmet");
     } else if (e.type === "attackIfFirstLockerResolve") {
       if (state.firstLocker == null) marks.push("unknown");
@@ -219,6 +233,7 @@ function computeBonusStartIndex(parts, eff) {
   const hasIf = eff.some(
     (e) =>
       e.type === "damageIf" ||
+      e.type === "damageSelfIf" ||
       e.type === "healIf" ||
       e.type === "attackIfFirstLockerResolve"
   );
@@ -421,7 +436,11 @@ function migrateLegacyDeckIfNeeded() {
 function loadDecksList() {
   migrateLegacyDeckIfNeeded();
   let decks = loadDecksListRaw();
-  if (decks.length === 0 && initialDeckIds.length === 20) {
+  if (
+    decks.length === 0 &&
+    initialDeckIds.length === 20 &&
+    validateDeckClient(initialDeckIds).ok
+  ) {
     const id = newDeckId();
     decks = [{ id, name: "初期コピー", cardIds: initialDeckIds.slice() }];
     saveDecksListRaw(decks);
@@ -451,38 +470,52 @@ function fillLobbyDeckSelect() {
   sel.textContent = "";
   const optInit = document.createElement("option");
   optInit.value = "__initial__";
-  optInit.textContent = "初期デッキ";
+  const initOk =
+    initialDeckIds.length === 20 && validateDeckClient(initialDeckIds).ok;
+  optInit.textContent = initOk ? "初期デッキ" : "初期デッキ（対戦不可）";
+  optInit.disabled = !initOk;
   sel.appendChild(optInit);
   for (const d of loadDecksList()) {
     const op = document.createElement("option");
     op.value = d.id;
-    op.textContent = d.name;
+    const legal =
+      Array.isArray(d.cardIds) &&
+      d.cardIds.length === 20 &&
+      validateDeckClient(d.cardIds).ok;
+    op.textContent = legal ? d.name : `${d.name}（対戦不可）`;
+    op.disabled = !legal;
     sel.appendChild(op);
   }
   const saved = localStorage.getItem(LS_LOBBY_DECK);
-  if (saved && [...sel.options].some((o) => o.value === saved)) {
+  const opts = [...sel.options];
+  if (saved && opts.some((o) => o.value === saved && !o.disabled)) {
     sel.value = saved;
   } else {
-    const first = loadDecksList()[0]?.id;
-    sel.value = first || "__initial__";
+    const firstLegal = opts.find((o) => !o.disabled);
+    if (firstLegal) sel.value = firstLegal.value;
   }
 }
 
 function lobbyChosenDeckIds() {
   const sel = document.getElementById("select-lobby-deck");
   const v = sel?.value;
+  let ids = null;
   if (v === "__initial__") {
-    return initialDeckIds.length === 20 ? initialDeckIds.slice() : null;
+    if (initialDeckIds.length === 20) ids = initialDeckIds.slice();
+  } else {
+    const d = loadDecksList().find((x) => x.id === v);
+    if (d?.cardIds?.length === 20) ids = d.cardIds.slice();
   }
-  const d = loadDecksList().find((x) => x.id === v);
-  if (!d?.cardIds || d.cardIds.length !== 20) return null;
-  return d.cardIds.slice();
+  if (!ids) return null;
+  return validateDeckClient(ids).ok ? ids : null;
 }
 
 /** 互換: 送信可能な（20枚の）保存デッキがあればその cardIds */
 function loadSavedDeck() {
   for (const d of loadDecksList()) {
-    if (d?.cardIds?.length === 20) return d.cardIds.slice();
+    if (d?.cardIds?.length === 20 && validateDeckClient(d.cardIds).ok) {
+      return d.cardIds.slice();
+    }
   }
   return null;
 }
@@ -500,8 +533,11 @@ function validateDeckCounts(ids) {
       return { ok: false, reason: `不明なカード: ${cid}` };
     }
     counts[cid] = (counts[cid] || 0) + 1;
-    if (counts[cid] > 3) {
-      return { ok: false, reason: "同じカードは1デッキに3枚までです。" };
+    if (counts[cid] > MAX_COPIES_PER_CARD) {
+      return {
+        ok: false,
+        reason: `同じカードは1デッキに${MAX_COPIES_PER_CARD}枚までです。`,
+      };
     }
   }
   return { ok: true };
@@ -629,6 +665,36 @@ function closeCardZoomPreview() {
   document.documentElement.classList.remove("scg-card-zoom-open");
 }
 
+/** 交戦ダメージログを、閲覧者 youAre 視点の文言に統一する */
+function formatClashDamageLogLine(e, youAre) {
+  const m = e.meta;
+  let damage;
+  let high;
+  let low;
+  let victimSlot;
+  if (m && m.clashDamage) {
+    damage = m.damage | 0;
+    high = m.winnerAttack | 0;
+    low = m.loserAttack | 0;
+    victimSlot = m.victimSlot | 0;
+  } else if (e.kind === "clash" && e.slot != null && typeof e.text === "string") {
+    const rx =
+      /^交戦で (\d+) ダメージ（相手の交戦力 (\d+) \/ 自分 (\d+)）$/;
+    const mm = e.text.match(rx);
+    if (!mm) return e.text;
+    damage = mm[1] | 0;
+    high = mm[2] | 0;
+    low = mm[3] | 0;
+    victimSlot = e.slot | 0;
+  } else {
+    return e.text;
+  }
+  if (youAre === victimSlot) {
+    return `交戦で ${damage} ダメージ（相手の交戦力 ${high} / あなたの交戦力 ${low}）`;
+  }
+  return `交戦で相手に ${damage} ダメージ（あなたの交戦力 ${high} / 相手の交戦力 ${low}）`;
+}
+
 function renderBattleLog(entries, youAre) {
   const box = $("#battle-log");
   if (!box) return;
@@ -638,18 +704,33 @@ function renderBattleLog(entries, youAre) {
     if (e.seq > maxSeq) maxSeq = e.seq;
     const row = document.createElement("div");
     row.className = "log-row";
-    const who =
-      e.slot === null
-        ? ""
-        : e.slot === youAre
-          ? "あなた › "
-          : "相手 › ";
-    row.textContent = `${who}${e.text}`;
+    const clashDamageRow =
+      e.kind === "clash" &&
+      (e.meta?.clashDamage ||
+        (typeof e.text === "string" && /交戦で \d+ ダメージ/.test(e.text)));
+    let who = "";
+    let body = e.text;
+    if (e.kind === "clash" && e.slot == null) {
+      who = "";
+      body = e.text;
+    } else if (clashDamageRow) {
+      who = "";
+      body = formatClashDamageLogLine(e, youAre);
+    } else {
+      who =
+        e.slot === null
+          ? ""
+          : e.slot === youAre
+            ? "あなた › "
+            : "相手 › ";
+      body = e.text;
+    }
+    row.textContent = `${who}${body}`;
     if (e.kind === "clash") row.classList.add("log-clash");
     else if (e.kind === "system") row.classList.add("log-sys");
     else if (e.kind === "negate") row.classList.add("log-neg");
-    else if (e.slot === youAre) row.classList.add("log-you");
-    else if (e.slot !== null) row.classList.add("log-opp");
+    else if (!clashDamageRow && e.slot === youAre) row.classList.add("log-you");
+    else if (!clashDamageRow && e.slot !== null) row.classList.add("log-opp");
     if (e.seq > lastBattleLogSeq) row.classList.add("flash");
     box.appendChild(row);
   }
@@ -785,17 +866,25 @@ function playDuelSfx(state, snap) {
     .sort((a, b) => a.seq - b.seq);
   let clashDamage = false;
   for (const e of newEntries) {
-    if (e.kind === "clash" && /ダメージ/.test(e.text)) clashDamage = true;
+    if (
+      e.kind === "clash" &&
+      (e.meta?.clashDamage || /ダメージ/.test(String(e.text || "")))
+    ) {
+      clashDamage = true;
+    }
   }
   let clashHitPlayed = false;
   for (const e of newEntries) {
     if (e.kind === "clash") {
-      if (/ダメージ/.test(e.text)) {
+      if (
+        e.meta?.clashDamage ||
+        /ダメージ/.test(String(e.text || ""))
+      ) {
         if (!clashHitPlayed) {
           S.clashHit();
           clashHitPlayed = true;
         }
-      } else if (/同値/.test(e.text)) S.clashTie();
+      } else if (/同値/.test(String(e.text || ""))) S.clashTie();
     } else if (e.kind === "negate") {
       S.negate();
     } else if (e.kind === "play") {
@@ -917,10 +1006,6 @@ function onGameState(state) {
   lastOppAttack = state.opponent.attackStock | 0;
   lastSelfAttack = state.you.attackStock | 0;
 
-  $("#cost-current").textContent = String(state.you.costPool);
-  $("#cost-max").textContent = String(
-    state.you.maxCost ?? state.you.costPool
-  );
   const costCurPile = $("#cost-current-pile");
   const costMaxPile = $("#cost-max-pile");
   if (costCurPile) costCurPile.textContent = String(state.you.costPool);
@@ -957,7 +1042,6 @@ function onGameState(state) {
   }
   banner.classList.toggle("wait", myLock);
 
-  $("#cost-bar").classList.toggle("wait", myLock);
   $("#cost-bar-pile")?.classList.toggle("wait", myLock);
 
   const oppStrip = $("#opp-hand-cards");
@@ -1300,13 +1384,13 @@ function renderDeckBuilder() {
       plus.type = "button";
       plus.className = "btn ghost deck-strip-btn";
       plus.textContent = "+1";
-      const atCap = n >= 3 || currentDeck.length >= 20;
+      const atCap = n >= MAX_COPIES_PER_CARD || currentDeck.length >= 20;
       plus.disabled = atCap;
       plus.addEventListener("click", () => {
         const counts = {};
         for (const x of currentDeck) counts[x] = (counts[x] || 0) + 1;
-        if ((counts[cid] || 0) >= 3) {
-          toast("同じカードは3枚までです");
+        if ((counts[cid] || 0) >= MAX_COPIES_PER_CARD) {
+          toast(`同じカードは${MAX_COPIES_PER_CARD}枚までです`);
           return;
         }
         if (currentDeck.length >= 20) {
@@ -1347,8 +1431,8 @@ function renderDeckBuilder() {
       }
       const counts = {};
       for (const x of currentDeck) counts[x] = (counts[x] || 0) + 1;
-      if ((counts[id] || 0) >= 3) {
-        toast("同じカードは3枚までです");
+      if ((counts[id] || 0) >= MAX_COPIES_PER_CARD) {
+        toast(`同じカードは${MAX_COPIES_PER_CARD}枚までです`);
         return;
       }
       if (currentDeck.length >= 20) {
@@ -1549,11 +1633,57 @@ function wireUi() {
   });
 
   $("#select-lobby-deck")?.addEventListener("change", (e) => {
-    localStorage.setItem(LS_LOBBY_DECK, e.target.value);
+    const v = e.target.value;
+    localStorage.setItem(LS_LOBBY_DECK, v);
+    prefillLobbyDeckCodeFromSelect();
+    if (!skywaySession) return;
+    let raw = null;
+    if (v === "__initial__") {
+      raw = initialDeckIds.length === 20 ? initialDeckIds.slice() : null;
+    } else {
+      const d = loadDecksList().find((x) => x.id === v);
+      raw =
+        d?.cardIds && d.cardIds.length === 20 ? d.cardIds.slice() : null;
+    }
+    if (!raw) {
+      if (v === "__initial__") {
+        toast("初期デッキが読み込めていません。カード一覧を開いてから戻ってください。");
+      }
+      return;
+    }
+    const v2 = validateDeckClient(raw);
+    if (!v2.ok) {
+      toast(v2.reason);
+      return;
+    }
+    sendDeckToServer(raw);
   });
 
   $("#chk-ready").addEventListener("change", (e) => {
-    sendReadyToServer(e.target.checked);
+    const on = e.target.checked;
+    if (on) {
+      let raw = null;
+      const sel = document.getElementById("select-lobby-deck");
+      const key = sel?.value;
+      if (key === "__initial__") {
+        raw =
+          initialDeckIds.length === 20 ? initialDeckIds.slice() : null;
+      } else if (key) {
+        const d = loadDecksList().find((x) => x.id === key);
+        raw =
+          d?.cardIds && d.cardIds.length === 20 ? d.cardIds.slice() : null;
+      }
+      const v = raw && validateDeckClient(raw);
+      if (!v || !v.ok) {
+        e.target.checked = false;
+        toast(
+          v?.reason ||
+            "対戦用のデッキを選んでください（20枚・同じカードは2枚まで）。"
+        );
+        return;
+      }
+    }
+    sendReadyToServer(on);
   });
 
   $("#btn-end-turn").addEventListener("click", () => {

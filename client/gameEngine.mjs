@@ -19,7 +19,7 @@ export const FIRST_LOCK_ATTACK_BONUS = 2;
 
 const MAX_LOG = 40;
 
-function pushLog(game, slot, text, cardId, kind) {
+function pushLog(game, slot, text, cardId, kind, meta) {
   if (!game.log) game.log = [];
   const entry = {
     seq: (game._logSeq = (game._logSeq | 0) + 1),
@@ -28,6 +28,7 @@ function pushLog(game, slot, text, cardId, kind) {
     text,
     cardId: cardId || null,
     kind: kind || "play",
+    meta: meta == null ? null : meta,
   };
   game.log.push(entry);
   if (game.log.length > MAX_LOG) game.log.splice(0, game.log.length - MAX_LOG);
@@ -99,6 +100,10 @@ function evalCondition(game, actorIndex, cond) {
       return opp.hand.length <= (cond.threshold | 0);
     case "opponentHpLte":
       return opp.hp <= (cond.threshold | 0);
+    case "opponentAttackStockGte":
+      return (opp.attackStock | 0) >= (cond.threshold | 0);
+    case "opponentAttackStockLte":
+      return (opp.attackStock | 0) <= (cond.threshold | 0);
     case "opponentLastCardIdIn": {
       const ids = Array.isArray(cond.cardIds) ? cond.cardIds : [];
       const last = (game.lastPlayBySlot || [])[1 - actorIndex];
@@ -181,6 +186,8 @@ function describeEffectLine(e) {
       return `次ターン相手コスト上限${e.cap | 0}`;
     case "damageSelf":
       return `自身ダメージ${v}`;
+    case "damageSelfIf":
+      return `自身ダメージ${v}（条件）`;
     case "attackIfFirstLockerResolve":
       return `先行確定時交戦力${v}`;
     default:
@@ -235,6 +242,10 @@ function applyCardEffects(game, actorIndex, cardDef, ctx = {}) {
       opp.costCapOnNextTurn = cap;
     } else if (e.type === "damageSelf") {
       self.hp = Math.max(0, self.hp - (e.value | 0));
+    } else if (e.type === "damageSelfIf") {
+      if (evalCondition(game, actorIndex, e)) {
+        self.hp = Math.max(0, self.hp - (e.value | 0));
+      }
     } else if (e.type === "attackIfFirstLockerResolve") {
       self.pendingFirstLockAttack =
         (self.pendingFirstLockAttack | 0) + (e.value | 0);
@@ -390,23 +401,23 @@ export function resolveRound(game, cardById) {
   if (a0 > a1) {
     const d = a0 - a1;
     game.players[1].hp = Math.max(0, game.players[1].hp - d);
-    pushLog(
-      game,
-      1,
-      `交戦で ${d} ダメージ（相手の交戦力 ${a0} / 自分 ${a1}）`,
-      null,
-      "clash"
-    );
+    pushLog(game, 1, "", null, "clash", {
+      clashDamage: true,
+      damage: d,
+      winnerAttack: a0,
+      loserAttack: a1,
+      victimSlot: 1,
+    });
   } else if (a1 > a0) {
     const d = a1 - a0;
     game.players[0].hp = Math.max(0, game.players[0].hp - d);
-    pushLog(
-      game,
-      0,
-      `交戦で ${d} ダメージ（相手の交戦力 ${a1} / 自分 ${a0}）`,
-      null,
-      "clash"
-    );
+    pushLog(game, 0, "", null, "clash", {
+      clashDamage: true,
+      damage: d,
+      winnerAttack: a1,
+      loserAttack: a0,
+      victimSlot: 0,
+    });
   } else {
     pushLog(game, null, `交戦 — 同値（${a0}）でダメージなし`, null, "clash");
   }

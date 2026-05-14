@@ -1,0 +1,23 @@
+{
+  "id": "spare_volt",
+  "name": "予備電圧",
+  "cost": 1,
+  "body": [
+    { "t": "次ターン相手コスト上限", "c": "muted" },
+    { "t": "4", "c": "cap" },
+    { "t": "，相手手札", "c": "muted" },
+    { "t": "3", "c": "condition" },
+    { "t": "枚以下時、交戦力", "c": "muted" },
+    { "t": "6", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "capOpponentNextTurn", "cap": 4 },
+    {
+      "type": "damageIf",
+      "mode": "opponentHandLte",
+      "threshold": 3,
+      "value": 6
+    }
+  ]
+}

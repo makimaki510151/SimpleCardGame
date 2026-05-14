@@ -30,8 +30,8 @@ function validateDeck(cardIds, byId) {
       return { ok: false, reason: `不明なカード: ${cid}` };
     }
     counts[cid] = (counts[cid] || 0) + 1;
-    if (counts[cid] > 3) {
-      return { ok: false, reason: "同じカードは1デッキに3枚までです。" };
+    if (counts[cid] > 2) {
+      return { ok: false, reason: "同じカードは1デッキに2枚までです。" };
     }
   }
   return { ok: true };

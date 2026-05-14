@@ -55575,7 +55575,7 @@ var MAX_COST_PER_TURN = 5;
 var DRAW_PER_TURN = 5;
 var FIRST_LOCK_ATTACK_BONUS = 2;
 var MAX_LOG = 40;
-function pushLog(game, slot, text, cardId, kind) {
+function pushLog(game, slot, text, cardId, kind, meta) {
   if (!game.log) game.log = [];
   const entry = {
     seq: game._logSeq = (game._logSeq | 0) + 1,
@@ -55583,7 +55583,8 @@ function pushLog(game, slot, text, cardId, kind) {
     slot,
     text,
     cardId: cardId || null,
-    kind: kind || "play"
+    kind: kind || "play",
+    meta: meta == null ? null : meta
   };
   game.log.push(entry);
   if (game.log.length > MAX_LOG) game.log.splice(0, game.log.length - MAX_LOG);
@@ -55650,6 +55651,10 @@ function evalCondition(game, actorIndex, cond) {
       return opp.hand.length <= (cond.threshold | 0);
     case "opponentHpLte":
       return opp.hp <= (cond.threshold | 0);
+    case "opponentAttackStockGte":
+      return (opp.attackStock | 0) >= (cond.threshold | 0);
+    case "opponentAttackStockLte":
+      return (opp.attackStock | 0) <= (cond.threshold | 0);
     case "opponentLastCardIdIn": {
       const ids = Array.isArray(cond.cardIds) ? cond.cardIds : [];
       const last = (game.lastPlayBySlot || [])[1 - actorIndex];
@@ -55721,6 +55726,8 @@ function describeEffectLine(e2) {
       return `\u6B21\u30BF\u30FC\u30F3\u76F8\u624B\u30B3\u30B9\u30C8\u4E0A\u9650${e2.cap | 0}`;
     case "damageSelf":
       return `\u81EA\u8EAB\u30C0\u30E1\u30FC\u30B8${v}`;
+    case "damageSelfIf":
+      return `\u81EA\u8EAB\u30C0\u30E1\u30FC\u30B8${v}\uFF08\u6761\u4EF6\uFF09`;
     case "attackIfFirstLockerResolve":
       return `\u5148\u884C\u78BA\u5B9A\u6642\u4EA4\u6226\u529B${v}`;
     default:
@@ -55768,6 +55775,10 @@ function applyCardEffects(game, actorIndex, cardDef, ctx = {}) {
       opp.costCapOnNextTurn = cap;
     } else if (e2.type === "damageSelf") {
       self2.hp = Math.max(0, self2.hp - (e2.value | 0));
+    } else if (e2.type === "damageSelfIf") {
+      if (evalCondition(game, actorIndex, e2)) {
+        self2.hp = Math.max(0, self2.hp - (e2.value | 0));
+      }
     } else if (e2.type === "attackIfFirstLockerResolve") {
       self2.pendingFirstLockAttack = (self2.pendingFirstLockAttack | 0) + (e2.value | 0);
     }
@@ -55899,23 +55910,23 @@ function resolveRound(game, cardById) {
   if (a0 > a1) {
     const d = a0 - a1;
     game.players[1].hp = Math.max(0, game.players[1].hp - d);
-    pushLog(
-      game,
-      1,
-      `\u4EA4\u6226\u3067 ${d} \u30C0\u30E1\u30FC\u30B8\uFF08\u76F8\u624B\u306E\u4EA4\u6226\u529B ${a0} / \u81EA\u5206 ${a1}\uFF09`,
-      null,
-      "clash"
-    );
+    pushLog(game, 1, "", null, "clash", {
+      clashDamage: true,
+      damage: d,
+      winnerAttack: a0,
+      loserAttack: a1,
+      victimSlot: 1
+    });
   } else if (a1 > a0) {
     const d = a1 - a0;
     game.players[0].hp = Math.max(0, game.players[0].hp - d);
-    pushLog(
-      game,
-      0,
-      `\u4EA4\u6226\u3067 ${d} \u30C0\u30E1\u30FC\u30B8\uFF08\u76F8\u624B\u306E\u4EA4\u6226\u529B ${a1} / \u81EA\u5206 ${a0}\uFF09`,
-      null,
-      "clash"
-    );
+    pushLog(game, 0, "", null, "clash", {
+      clashDamage: true,
+      damage: d,
+      winnerAttack: a1,
+      loserAttack: a0,
+      victimSlot: 0
+    });
   } else {
     pushLog(game, null, `\u4EA4\u6226 \u2014 \u540C\u5024\uFF08${a0}\uFF09\u3067\u30C0\u30E1\u30FC\u30B8\u306A\u3057`, null, "clash");
   }
@@ -55993,8 +56004,8 @@ function validateDeck(cardIds, byId) {
       return { ok: false, reason: `\u4E0D\u660E\u306A\u30AB\u30FC\u30C9: ${cid}` };
     }
     counts[cid] = (counts[cid] || 0) + 1;
-    if (counts[cid] > 3) {
-      return { ok: false, reason: "\u540C\u3058\u30AB\u30FC\u30C9\u306F1\u30C7\u30C3\u30AD\u306B3\u679A\u307E\u3067\u3067\u3059\u3002" };
+    if (counts[cid] > 2) {
+      return { ok: false, reason: "\u540C\u3058\u30AB\u30FC\u30C9\u306F1\u30C7\u30C3\u30AD\u306B2\u679A\u307E\u3067\u3067\u3059\u3002" };
     }
   }
   return { ok: true };
@@ -56059,12 +56070,12 @@ function createSkyWayP2P({
         {
           nickname: "\u30DB\u30B9\u30C8",
           ready: lobby.hostReady,
-          hasDeck: Array.isArray(lobby.hostDeck) && lobby.hostDeck.length === 20
+          hasDeck: validateDeck(lobby.hostDeck, cardById).ok
         },
         {
           nickname: "\u30B2\u30B9\u30C8",
           ready: lobby.guestReady,
-          hasDeck: Array.isArray(lobby.guestDeck) && lobby.guestDeck.length === 20
+          hasDeck: validateDeck(lobby.guestDeck, cardById).ok
         }
       ],
       catalog: { initialDeck: initialDeckIds.slice(), cards }
@@ -56234,7 +56245,15 @@ function createSkyWayP2P({
         return;
       }
       if (msg.t === "setReady") {
-        lobby.guestReady = !!msg.ready;
+        const want = !!msg.ready;
+        if (want) {
+          const gv = validateDeck(lobby.guestDeck, cardById);
+          if (!gv.ok) {
+            broadcastDown({ t: "actionError", message: gv.reason });
+            return;
+          }
+        }
+        lobby.guestReady = want;
         emitLobby();
         tryStartGameHost();
         return;
@@ -56341,6 +56360,13 @@ function createSkyWayP2P({
     },
     setReady(ready) {
       if (role === "host") {
+        if (ready) {
+          const hv = validateDeck(lobby.hostDeck, cardById);
+          if (!hv.ok) {
+            onActionError({ message: hv.reason });
+            return;
+          }
+        }
         lobby.hostReady = !!ready;
         emitLobby();
         tryStartGameHost();

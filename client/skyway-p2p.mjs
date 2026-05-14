@@ -29,8 +29,8 @@ function validateDeck(cardIds, byId) {
       return { ok: false, reason: `不明なカード: ${cid}` };
     }
     counts[cid] = (counts[cid] || 0) + 1;
-    if (counts[cid] > 3) {
-      return { ok: false, reason: "同じカードは1デッキに3枚までです。" };
+    if (counts[cid] > 2) {
+      return { ok: false, reason: "同じカードは1デッキに2枚までです。" };
     }
   }
   return { ok: true };
@@ -101,12 +101,12 @@ export function createSkyWayP2P({
         {
           nickname: "ホスト",
           ready: lobby.hostReady,
-          hasDeck: Array.isArray(lobby.hostDeck) && lobby.hostDeck.length === 20,
+          hasDeck: validateDeck(lobby.hostDeck, cardById).ok,
         },
         {
           nickname: "ゲスト",
           ready: lobby.guestReady,
-          hasDeck: Array.isArray(lobby.guestDeck) && lobby.guestDeck.length === 20,
+          hasDeck: validateDeck(lobby.guestDeck, cardById).ok,
         },
       ],
       catalog: { initialDeck: initialDeckIds.slice(), cards },
@@ -291,7 +291,15 @@ export function createSkyWayP2P({
         return;
       }
       if (msg.t === "setReady") {
-        lobby.guestReady = !!msg.ready;
+        const want = !!msg.ready;
+        if (want) {
+          const gv = validateDeck(lobby.guestDeck, cardById);
+          if (!gv.ok) {
+            broadcastDown({ t: "actionError", message: gv.reason });
+            return;
+          }
+        }
+        lobby.guestReady = want;
         emitLobby();
         tryStartGameHost();
         return;
@@ -411,6 +419,13 @@ export function createSkyWayP2P({
     },
     setReady(ready) {
       if (role === "host") {
+        if (ready) {
+          const hv = validateDeck(lobby.hostDeck, cardById);
+          if (!hv.ok) {
+            onActionError({ message: hv.reason });
+            return;
+          }
+        }
         lobby.hostReady = !!ready;
         emitLobby();
         tryStartGameHost();

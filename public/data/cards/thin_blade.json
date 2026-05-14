@@ -1,0 +1,30 @@
+{
+  "id": "thin_blade",
+  "name": "薄刃の測り",
+  "cost": 1,
+  "body": [
+    { "t": "相手交戦力", "c": "muted" },
+    { "t": "2", "c": "condition" },
+    { "t": "以下時、交戦力", "c": "muted" },
+    { "t": "7", "c": "damage" },
+    { "t": "。相手交戦力", "c": "muted" },
+    { "t": "10", "c": "condition" },
+    { "t": "以上で自身ダメージ", "c": "muted" },
+    { "t": "3", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    {
+      "type": "damageIf",
+      "mode": "opponentAttackStockLte",
+      "threshold": 2,
+      "value": 7
+    },
+    {
+      "type": "damageSelfIf",
+      "mode": "opponentAttackStockGte",
+      "threshold": 10,
+      "value": 3
+    }
+  ]
+}

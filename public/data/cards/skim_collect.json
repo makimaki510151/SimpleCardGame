@@ -1,0 +1,23 @@
+{
+  "id": "skim_collect",
+  "name": "水面掬い",
+  "cost": 1,
+  "body": [
+    { "t": "相手手札ランダム廃棄", "c": "muted" },
+    { "t": "1", "c": "discard" },
+    { "t": "，相手手札", "c": "muted" },
+    { "t": "4", "c": "condition" },
+    { "t": "枚以下時、交戦力", "c": "muted" },
+    { "t": "5", "c": "damage" },
+    { "t": "。", "c": "muted" }
+  ],
+  "effects": [
+    { "type": "discardOpponent", "value": 1 },
+    {
+      "type": "damageIf",
+      "mode": "opponentHandLte",
+      "threshold": 4,
+      "value": 5
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "description": "全員が利用できる初期デッキ（20枚・各カード最大3枚）",
+  "description": "全員が利用できる初期デッキ（20枚・各カード最大2枚）",
   "cardIds": [
     "low_guard",
     "needle",

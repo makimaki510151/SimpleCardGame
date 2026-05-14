@@ -839,19 +839,25 @@ h3 {
 }
 
 .duel-hp-line {
-  font-size: 0.95rem;
+  font-size: 1.12rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
 .duel-hp-num {
   color: var(--text);
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 1.35em;
+  vertical-align: baseline;
 }
 
 .duel-hp-max {
   color: var(--muted);
   font-weight: 500;
+}
+
+.duel-opp-field .duel-hp-max {
+  font-size: 1.02em;
 }
 
 .duel-zone-row {
@@ -1378,6 +1384,29 @@ h3 {
   border-color: rgba(255, 184, 108, 0.38);
 }
 
+.duel-stat-chip--hp {
+  border-color: rgba(63, 185, 80, 0.42);
+  padding: 0.18rem 0.52rem 0.22rem;
+  align-items: baseline;
+}
+
+.duel-stat-chip--hp .duel-stat-chip-label {
+  font-size: 0.68rem;
+}
+
+.duel-stat-chip--hp .duel-hp-num {
+  font-size: 1.72rem;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.duel-stat-chip--hp .duel-hp-max {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-left: 0.06em;
+}
+
 .duel-stat-chip-label {
   font-size: 0.64rem;
   color: var(--muted);
@@ -1395,18 +1424,8 @@ h3 {
   line-height: 1;
 }
 
-.duel-stat-chip .duel-hp-max {
-  font-size: 0.78em;
-  font-weight: 500;
-  color: var(--muted);
-}
-
 .duel-stat-chip .duel-cost-nums {
   margin-left: 0;
-}
-
-#cost-bar.wait {
-  opacity: 0.52;
 }
 
 .duel-foot-right {
