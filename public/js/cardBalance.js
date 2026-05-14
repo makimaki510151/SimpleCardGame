@@ -91,16 +91,10 @@
       }
       const hasFirst = (id) =>
         (byId[id].effects || []).some((e) => e.type === "attackIfFirstLockerResolve");
-      const hasVolatile = (id) =>
-        (byId[id].effects || []).some(
-          (e) =>
-            e.type === "damageIf" &&
-            [
-              "opponentHandLte",
-              "opponentHpLte",
-              "opponentLastCardIdIn",
-            ].includes(e.mode)
-        );
+      const hasDamageIf = (id) =>
+        (byId[id].effects || []).some((e) => e.type === "damageIf");
+      const hasHealIf = (id) =>
+        (byId[id].effects || []).some((e) => e.type === "healIf");
       const pairs = [];
       for (let i = 0; i < ids.length; i++) {
         for (let j = 0; j < ids.length; j++) {
@@ -108,7 +102,14 @@
           const ida = ids[i];
           const idb = ids[j];
           if (hasFirst(ida) || hasFirst(idb)) continue;
-          if (hasVolatile(ida) || hasVolatile(idb)) continue;
+          if (
+            hasDamageIf(ida) ||
+            hasDamageIf(idb) ||
+            hasHealIf(ida) ||
+            hasHealIf(idb)
+          ) {
+            continue;
+          }
           if (strictlyDominates(vecs[ida], vecs[idb])) {
             pairs.push({ dominant: ida, weaker: idb });
           }

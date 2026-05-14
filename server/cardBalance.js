@@ -3,8 +3,8 @@ const MAX_COST = 5;
 /**
  * 効果を数値ベクトルに畳み込み（完全上位互換判定用）。
  * 条件付きダメージ／回復は保守的に「常に成立」とみなしフル value を加算する。
- * attackIfFirstLockerResolve は先行確定時にのみ交戦力へ反映するため集計に含めず、
- * assertNoStrictDominance ではその効果を持つカードをペア検査から除外する。
+ * attackIfFirstLockerResolve は先行確定時のみ交戦力へ反映するため集計に含めない。
+ * damageIf / healIf を持つカードは assert でペア検査から除外する。
  */
 function aggregateForDominance(card) {
   const eff = card.effects || [];
@@ -96,14 +96,12 @@ function cardHasFirstLockerResolve(card) {
   return (card.effects || []).some((e) => e.type === "attackIfFirstLockerResolve");
 }
 
-function cardHasVolatileDamageIf(card) {
-  return (card.effects || []).some(
-    (e) =>
-      e.type === "damageIf" &&
-      ["opponentHandLte", "opponentHpLte", "opponentLastCardIdIn"].includes(
-        e.mode
-      )
-  );
+function cardHasConditionalDamageIf(card) {
+  return (card.effects || []).some((e) => e.type === "damageIf");
+}
+
+function cardHasConditionalHealIf(card) {
+  return (card.effects || []).some((e) => e.type === "healIf");
 }
 
 function assertNoStrictDominance(byId) {
@@ -125,8 +123,10 @@ function assertNoStrictDominance(byId) {
         continue;
       }
       if (
-        cardHasVolatileDamageIf(byId[ida]) ||
-        cardHasVolatileDamageIf(byId[idb])
+        cardHasConditionalDamageIf(byId[ida]) ||
+        cardHasConditionalDamageIf(byId[idb]) ||
+        cardHasConditionalHealIf(byId[ida]) ||
+        cardHasConditionalHealIf(byId[idb])
       ) {
         continue;
       }

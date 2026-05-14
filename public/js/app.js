@@ -1128,6 +1128,16 @@ function onGameOver(payload) {
 }
 
 async function fetchCatalog() {
+  const mergeInitialFromStatic = async () => {
+    if (initialDeckIds.length === 20) return;
+    const init = await fetch(resolveUrl("data/initial-deck.json")).then((r) => {
+      if (!r.ok) throw new Error("initial");
+      return r.json();
+    });
+    const ids = init.cardIds;
+    if (Array.isArray(ids) && ids.length === 20) initialDeckIds = ids.slice();
+  };
+
   const api = resolveUrl("api/cards");
   try {
     const res = await fetch(api);
@@ -1138,6 +1148,7 @@ async function fetchCatalog() {
         catalogById[c.id] = c;
       }
       initialDeckIds = data.initialDeck?.slice() || [];
+      await mergeInitialFromStatic();
       if (window.SCG_cardBalance?.assertNoStrictDominance) {
         window.SCG_cardBalance.assertNoStrictDominance(catalogById);
       }
