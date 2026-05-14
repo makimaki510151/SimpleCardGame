@@ -422,14 +422,24 @@ h3 {
   font-size: 0.88rem;
   line-height: 1.55;
   letter-spacing: 0.01em;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: strict;
 }
 
 .card-body > span {
   display: inline;
   vertical-align: baseline;
   line-height: inherit;
+}
+
+.card-body-nowrap-phrase {
+  white-space: nowrap;
+}
+
+.card-body-num-token {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .card-face.wide .card-inner {
