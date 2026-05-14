@@ -424,7 +424,7 @@ h3 {
   letter-spacing: 0.01em;
   overflow-wrap: break-word;
   word-break: normal;
-  line-break: strict;
+  line-break: loose;
 }
 
 .card-body > span {
@@ -433,31 +433,8 @@ h3 {
   line-height: inherit;
 }
 
-.card-body-nowrap-phrase {
-  white-space: nowrap;
-}
-
 .card-body-num-token {
-  white-space: nowrap;
   font-variant-numeric: tabular-nums;
-}
-
-.card-body-inline-flow {
-  display: block;
-  white-space: nowrap;
-  overflow-x: auto;
-  max-width: 100%;
-  min-width: 0;
-  scrollbar-width: thin;
-}
-
-.card-body-inline-flow::-webkit-scrollbar {
-  height: 5px;
-}
-
-.card-body-inline-flow::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(139, 148, 158, 0.45);
 }
 
 .card-face.wide .card-inner {
@@ -1744,6 +1721,7 @@ h3 {
   align-items: stretch;
   gap: 0.08rem;
   min-width: 0;
+  overflow-x: hidden;
 }
 
 .card-body-bonus-label {

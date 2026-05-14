@@ -256,7 +256,7 @@ function computeBonusStartIndex(parts, eff) {
   return Math.min(...candidates);
 }
 
-/** カード本文は改行を入れず1行に近い流しで表示（長いときは横スクロール） */
+/** カード本文：セグメントをインラインで連結し、幅に応じてブラウザが折り返す */
 function appendSegSpan(container, seg) {
   const span = document.createElement("span");
   span.textContent = String(seg.t ?? "");
@@ -283,21 +283,15 @@ function appendCardBodyParts(container, parts, start, end) {
           post.c === "discard" ||
           post.c === "cap");
       if (postOk) {
-        const ph = document.createElement("span");
-        ph.className = "card-body-nowrap-phrase";
-        appendSegSpan(ph, a);
-        appendSegSpan(ph, b);
-        container.appendChild(ph);
+        appendSegSpan(container, a);
+        appendSegSpan(container, b);
         appendSegSpan(container, post);
         i += 3;
         continue;
       }
       if (!post) {
-        const ph = document.createElement("span");
-        ph.className = "card-body-nowrap-phrase";
-        appendSegSpan(ph, a);
-        appendSegSpan(ph, b);
-        container.appendChild(ph);
+        appendSegSpan(container, a);
+        appendSegSpan(container, b);
         i += 2;
         continue;
       }
@@ -319,10 +313,7 @@ function renderCardBody(container, card, duelCtx) {
   }
 
   if (bonusStart > 0) {
-    const mainFlow = document.createElement("div");
-    mainFlow.className = "card-body-inline-flow";
-    appendCardBodyParts(mainFlow, parts, 0, bonusStart);
-    container.appendChild(mainFlow);
+    appendCardBodyParts(container, parts, 0, bonusStart);
   }
 
   const wrap = document.createElement("div");
@@ -346,10 +337,7 @@ function renderCardBody(container, card, duelCtx) {
   else badge.textContent = "対戦外";
   wrap.appendChild(badge);
 
-  const bonusFlow = document.createElement("div");
-  bonusFlow.className = "card-body-inline-flow";
-  appendCardBodyParts(bonusFlow, parts, bonusStart, parts.length);
-  wrap.appendChild(bonusFlow);
+  appendCardBodyParts(wrap, parts, bonusStart, parts.length);
   container.appendChild(wrap);
 }
 
