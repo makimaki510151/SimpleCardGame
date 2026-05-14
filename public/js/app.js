@@ -135,6 +135,15 @@ function toast(msg) {
   toast._tm = setTimeout(() => {
     t.hidden = true;
   }, 3200);
+  const S = typeof ScgSfx !== "undefined" ? ScgSfx : null;
+  if (!S) return;
+  const m = String(msg || "");
+  const warnRe =
+    /失敗|できません|ないです|不正|足りません|操作エラー|読み込めません|見つかりません|コピーに失敗|最大\d+個まで|最後の1つは削除|\d+個までです|使用するカード以外|同じ手札位置は2回|捨てるには手札が足りません/;
+  const okRe = /しました|送信|保存|作成|切り替え|削除しました|コピーしました/;
+  if (warnRe.test(m)) S.toastWarn();
+  else if (okRe.test(m) && !/失敗/.test(m)) S.toastOk();
+  else S.toastNeutral();
 }
 
 function renderCardBody(container, card) {
@@ -460,6 +469,7 @@ function openCardZoomPreview(cardId) {
   back.hidden = false;
   document.body.classList.add("scg-card-zoom-open");
   document.documentElement.classList.add("scg-card-zoom-open");
+  if (typeof ScgSfx !== "undefined") ScgSfx.cardPreview();
 }
 
 function closeCardZoomPreview() {
@@ -610,7 +620,74 @@ function renderDuelStatusRails(state) {
   fillStatusRail($("#self-status-rail-body"), selfRows);
 }
 
+/**
+ * 直近のログ・HP・交戦力・確定の変化から SE を鳴らす（lastBattleLogSeq 更新前に呼ぶ）。
+ */
+function playDuelSfx(state, snap) {
+  const S = typeof ScgSfx === "undefined" ? null : ScgSfx;
+  if (!S || !lastDuelGameState) return;
+  const youAre = state.youAre | 0;
+  const selfHp = state.you.hp | 0;
+  const oppHp = state.opponent.hp | 0;
+  const logs = state.battleLog || [];
+  const newEntries = logs
+    .filter((e) => e.seq > lastBattleLogSeq)
+    .sort((a, b) => a.seq - b.seq);
+  let clashDamage = false;
+  for (const e of newEntries) {
+    if (e.kind === "clash" && /ダメージ/.test(e.text)) clashDamage = true;
+  }
+  let clashHitPlayed = false;
+  for (const e of newEntries) {
+    if (e.kind === "clash") {
+      if (/ダメージ/.test(e.text)) {
+        if (!clashHitPlayed) {
+          S.clashHit();
+          clashHitPlayed = true;
+        }
+      } else if (/同値/.test(e.text)) S.clashTie();
+    } else if (e.kind === "negate") {
+      S.negate();
+    } else if (e.kind === "play") {
+      if (e.slot === youAre) S.playCard();
+      else if (e.slot != null) S.oppPlay();
+    } else if (e.kind === "system") {
+      S.roundSystem();
+    }
+  }
+  const ps = snap.sfxPrevSelfHp;
+  const po = snap.sfxPrevOppHp;
+  if (ps !== null && selfHp > ps) S.heal();
+  if (!clashDamage) {
+    if (ps !== null && selfHp < ps) S.selfHurt();
+    if (po !== null && oppHp < po) S.dealDamage();
+  }
+  const lg = lastDuelGameState;
+  let lockDone = false;
+  if (lg && !lg.you.roundLocked && state.you.roundLocked) {
+    S.lockConfirm();
+    lockDone = true;
+  }
+  if (!lockDone && lg && !lg.opponent.roundLocked && state.opponent.roundLocked) {
+    S.lockConfirm();
+  }
+  if (snap.sfxPrevSelfAtk >= 0) {
+    const ns = state.you.attackStock | 0;
+    if (ns > snap.sfxPrevSelfAtk) S.attackTick();
+  }
+  if (snap.sfxPrevOppAtk >= 0) {
+    const no = state.opponent.attackStock | 0;
+    if (no > snap.sfxPrevOppAtk) S.uiTap();
+  }
+}
+
 function onGameState(state) {
+  const sfxSnap = {
+    sfxPrevSelfHp: duelPrevSelfHp,
+    sfxPrevOppHp: duelPrevOppHp,
+    sfxPrevSelfAtk: lastSelfAttack,
+    sfxPrevOppAtk: lastOppAttack,
+  };
   showScreen("screen-game");
   applyDuelZoomClass();
   lastGameYouAre = state.youAre;
@@ -745,6 +822,8 @@ function onGameState(state) {
     }
   }
 
+  playDuelSfx(state, sfxSnap);
+
   renderBattleLog(state.battleLog, state.youAre);
 
   const canPlay = !myLock;
@@ -876,6 +955,10 @@ function onGameOver(payload) {
     hero.textContent = youWin ? "勝利" : "敗北";
   }
   $("#result-title").textContent = youWin ? "あなたの勝ち" : "あなたの負け";
+  if (typeof ScgSfx !== "undefined") {
+    if (youWin && !disconnect) ScgSfx.gameWin();
+    else if (!youWin) ScgSfx.gameLose();
+  }
   let detail = youWin
     ? "相手のHPを0にし、デュエルを制しました。"
     : "あなたのHPが0になり、デュエルは続行できません。";
@@ -1135,6 +1218,7 @@ function renderDeckBuilder() {
 function wireUi() {
   document.querySelectorAll("[data-go]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (typeof ScgSfx !== "undefined") ScgSfx.uiTap();
       const target = btn.getAttribute("data-go");
       if (target === "online") {
         showScreen("screen-online-menu");
@@ -1147,6 +1231,7 @@ function wireUi() {
 
   document.querySelectorAll("[data-back]").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (typeof ScgSfx !== "undefined") ScgSfx.uiTap();
       const t = btn.getAttribute("data-back");
       if (t === "title") showScreen("screen-title");
     });
@@ -1311,6 +1396,7 @@ function wireUi() {
   });
 
   $("#btn-duel-zoom-toggle")?.addEventListener("click", () => {
+    if (typeof ScgSfx !== "undefined") ScgSfx.uiTap();
     const cur = sessionStorage.getItem(SS_DUEL_ZOOM_LG);
     if (cur === "0") {
       sessionStorage.removeItem(SS_DUEL_ZOOM_LG);

@@ -612,6 +612,11 @@ h3 {
   --duel-card-w: 108px;
   --duel-card-h: 142px;
   --duel-log-max-h: min(32vh, 13rem);
+  /** 手札レーンに常に確保するスロット数（この幅より内容が広いときだけ横スクロール） */
+  --duel-hand-visible-slots: 5;
+  --duel-hand-pad-x: 0.44rem; /* 0.22rem * 2 相当（.duel-hand-self / .duel-hand-strip の左右） */
+  --duel-hand-gap-self: 0.32rem;
+  --duel-hand-gap-opp: 0.28rem;
 }
 
 #screen-game.duel-zoom-lg {
@@ -730,6 +735,7 @@ h3 {
   flex: 1 1 auto;
   min-height: 0;
   margin-top: 0.35rem;
+  overflow-x: auto;
 }
 
 .duel-field-head {
@@ -812,6 +818,7 @@ h3 {
   gap: 0.5rem;
   min-height: 0;
   margin-top: 0.35rem;
+  overflow-x: auto;
 }
 
 .duel-field-split--opp {
@@ -1083,9 +1090,13 @@ h3 {
   flex-wrap: nowrap;
   justify-content: flex-start;
   align-items: flex-end;
-  gap: 0.28rem;
+  gap: var(--duel-hand-gap-opp, 0.28rem);
   width: 100%;
-  min-width: 0;
+  min-width: calc(
+    var(--duel-hand-visible-slots, 5) * var(--duel-card-w) +
+      (var(--duel-hand-visible-slots, 5) - 1) * var(--duel-hand-gap-opp, 0.28rem) +
+      var(--duel-hand-pad-x, 0.44rem)
+  );
   box-sizing: border-box;
   padding: 0.35rem 0.22rem 0.08rem;
   min-height: calc(var(--duel-card-h) + 1.05rem);
@@ -1100,9 +1111,13 @@ h3 {
   flex-wrap: nowrap;
   justify-content: flex-start;
   align-items: flex-end;
-  gap: 0.32rem;
+  gap: var(--duel-hand-gap-self, 0.32rem);
   width: 100%;
-  min-width: 0;
+  min-width: calc(
+    var(--duel-hand-visible-slots, 5) * var(--duel-card-w) +
+      (var(--duel-hand-visible-slots, 5) - 1) * var(--duel-hand-gap-self, 0.32rem) +
+      var(--duel-hand-pad-x, 0.44rem)
+  );
   box-sizing: border-box;
   padding: 0.35rem 0.22rem 0.08rem;
   min-height: calc(var(--duel-card-h) + 1.05rem);
