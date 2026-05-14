@@ -4,13 +4,13 @@
   "cost": 3,
   "body": [
     { "t": "交戦力", "c": "muted" },
-    { "t": "7", "c": "damage" },
+    { "t": "11", "c": "damage" },
     { "t": "，自身回復", "c": "muted" },
-    { "t": "2", "c": "heal" },
+    { "t": "3", "c": "heal" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 7 },
-    { "type": "heal", "value": 2 }
+    { "type": "damage", "value": 11 },
+    { "type": "heal", "value": 3 }
   ]
 }

@@ -6,7 +6,7 @@
     { "t": "自身HP", "c": "muted" },
     { "t": "18", "c": "condition" },
     { "t": "以下時、回復", "c": "muted" },
-    { "t": "1", "c": "heal" },
+    { "t": "3", "c": "heal" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
@@ -14,7 +14,7 @@
       "type": "healIf",
       "mode": "selfHpLte",
       "threshold": 18,
-      "value": 1
+      "value": 3
     }
   ]
 }

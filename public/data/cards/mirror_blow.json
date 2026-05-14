@@ -4,21 +4,21 @@
   "cost": 1,
   "body": [
     { "t": "交戦力", "c": "muted" },
-    { "t": "2", "c": "damage" },
+    { "t": "3", "c": "damage" },
     { "t": "。", "c": "muted" },
     { "t": "相手HP", "c": "muted" },
     { "t": "25", "c": "condition" },
     { "t": "以上時、交戦力", "c": "muted" },
-    { "t": "4", "c": "damage" },
+    { "t": "6", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
-    { "type": "damage", "value": 2 },
+    { "type": "damage", "value": 3 },
     {
       "type": "damageIf",
       "mode": "opponentHpGte",
       "threshold": 25,
-      "value": 4
+      "value": 6
     }
   ]
 }

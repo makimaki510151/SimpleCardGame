@@ -6,7 +6,7 @@
     { "t": "相手HP", "c": "muted" },
     { "t": "15", "c": "condition" },
     { "t": "以下時、交戦力", "c": "muted" },
-    { "t": "5", "c": "damage" },
+    { "t": "7", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
@@ -14,7 +14,7 @@
       "type": "damageIf",
       "mode": "opponentHpLte",
       "threshold": 15,
-      "value": 5
+      "value": 7
     }
   ]
 }

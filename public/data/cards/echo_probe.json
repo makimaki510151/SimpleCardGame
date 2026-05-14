@@ -6,7 +6,7 @@
     { "t": "相手直前", "c": "muted" },
     { "t": "針・チップ", "c": "condition" },
     { "t": "時、交戦力", "c": "muted" },
-    { "t": "4", "c": "damage" },
+    { "t": "9", "c": "damage" },
     { "t": "。", "c": "muted" }
   ],
   "effects": [
@@ -14,7 +14,7 @@
       "type": "damageIf",
       "mode": "opponentLastCardIdIn",
       "cardIds": ["needle", "chip"],
-      "value": 4
+      "value": 9
     }
   ]
 }
