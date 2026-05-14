@@ -7,8 +7,20 @@
     <base id="scg-base" href="/" />
     <script>
       (function () {
-        var p = location.pathname.replace(/\/[^/]*$/, "/");
-        if (p === "//") p = "/";
+        // 末尾スラッシュなしのディレクトリ URL（例: /SimpleCardGame）では、従来の replace が
+        // ディレクトリ名まで落として / になり、data/cards 等がすべて 404 になる。
+        var path = location.pathname || "/";
+        var last = path.slice(path.lastIndexOf("/") + 1);
+        var isHtmlEntry = /\.html?$/i.test(last);
+        var p;
+        if (isHtmlEntry) {
+          p = path.replace(/\/[^/]*$/, "/");
+        } else if (path.endsWith("/")) {
+          p = path;
+        } else {
+          p = path + "/";
+        }
+        if (!p || p === "//") p = "/";
         var b = document.getElementById("scg-base");
         if (b) b.href = p;
         window.__SCG_BASE__ = p;
