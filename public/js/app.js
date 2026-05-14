@@ -256,39 +256,14 @@ function computeBonusStartIndex(parts, eff) {
   return Math.min(...candidates);
 }
 
-/** 読点の直後に改行（数字の途中では分割しない） */
-const CARD_BODY_COMMA_SPLIT = /([，,、])/u;
-
-function appendSpanRich(container, seg) {
-  const cls = `seg-${seg.c || "muted"}`;
-  const raw = String(seg.t ?? "");
-  if (!CARD_BODY_COMMA_SPLIT.test(raw)) {
-    const span = document.createElement("span");
-    span.textContent = raw;
-    span.className = cls;
-    if (/^\d+$/.test(raw.trim())) span.classList.add("card-body-num-token");
-    container.appendChild(span);
-    return;
-  }
-  const pieces = raw.split(CARD_BODY_COMMA_SPLIT);
-  for (let j = 0; j < pieces.length; j += 2) {
-    const chunk = pieces[j];
-    const delim = pieces[j + 1];
-    if (chunk) {
-      const span = document.createElement("span");
-      span.textContent = chunk;
-      span.className = cls;
-      if (/^\d+$/.test(chunk.trim())) span.classList.add("card-body-num-token");
-      container.appendChild(span);
-    }
-    if (delim) {
-      const dspan = document.createElement("span");
-      dspan.textContent = delim;
-      dspan.className = cls;
-      container.appendChild(dspan);
-      container.appendChild(document.createElement("br"));
-    }
-  }
+/** カード本文は改行を入れず1行に近い流しで表示（長いときは横スクロール） */
+function appendSegSpan(container, seg) {
+  const span = document.createElement("span");
+  span.textContent = String(seg.t ?? "");
+  span.className = `seg-${seg.c || "muted"}`;
+  const raw = String(seg.t ?? "").trim();
+  if (/^\d+$/.test(raw)) span.classList.add("card-body-num-token");
+  container.appendChild(span);
 }
 
 function appendCardBodyParts(container, parts, start, end) {
@@ -305,28 +280,29 @@ function appendCardBodyParts(container, parts, start, end) {
           post.c === "damage" ||
           post.c === "heal" ||
           post.c === "draw" ||
-          post.c === "discard");
+          post.c === "discard" ||
+          post.c === "cap");
       if (postOk) {
         const ph = document.createElement("span");
         ph.className = "card-body-nowrap-phrase";
-        appendSpanRich(ph, a);
-        appendSpanRich(ph, b);
+        appendSegSpan(ph, a);
+        appendSegSpan(ph, b);
         container.appendChild(ph);
-        appendSpanRich(container, post);
+        appendSegSpan(container, post);
         i += 3;
         continue;
       }
       if (!post) {
         const ph = document.createElement("span");
         ph.className = "card-body-nowrap-phrase";
-        appendSpanRich(ph, a);
-        appendSpanRich(ph, b);
+        appendSegSpan(ph, a);
+        appendSegSpan(ph, b);
         container.appendChild(ph);
         i += 2;
         continue;
       }
     }
-    appendSpanRich(container, a);
+    appendSegSpan(container, a);
     i += 1;
   }
 }
@@ -342,7 +318,13 @@ function renderCardBody(container, card, duelCtx) {
     return;
   }
 
-  appendCardBodyParts(container, parts, 0, bonusStart);
+  if (bonusStart > 0) {
+    const mainFlow = document.createElement("div");
+    mainFlow.className = "card-body-inline-flow";
+    appendCardBodyParts(mainFlow, parts, 0, bonusStart);
+    container.appendChild(mainFlow);
+  }
+
   const wrap = document.createElement("div");
   const vis = aggregateBonusVisual(card, duelCtx);
   wrap.className = "card-body-bonus-wrap";
@@ -364,7 +346,10 @@ function renderCardBody(container, card, duelCtx) {
   else badge.textContent = "対戦外";
   wrap.appendChild(badge);
 
-  appendCardBodyParts(wrap, parts, bonusStart, parts.length);
+  const bonusFlow = document.createElement("div");
+  bonusFlow.className = "card-body-inline-flow";
+  appendCardBodyParts(bonusFlow, parts, bonusStart, parts.length);
+  wrap.appendChild(bonusFlow);
   container.appendChild(wrap);
 }
 
