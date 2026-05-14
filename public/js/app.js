@@ -146,13 +146,121 @@ function toast(msg) {
   else S.toastNeutral();
 }
 
-function renderCardBody(container, card) {
+function actorHandLen(state, slot) {
+  return slot === state.youAre
+    ? state.you.hand?.length ?? 0
+    : state.opponent.handCount ?? state.opponent.hand?.length ?? 0;
+}
+
+function actorHpVal(state, slot) {
+  return slot === state.youAre ? state.you.hp | 0 : state.opponent.hp | 0;
+}
+
+function evalIfEffectForActor(effect, state, actorSlot) {
+  const mode = effect.mode;
+  const oppSlot = 1 - actorSlot;
+  const selfHand = actorHandLen(state, actorSlot);
+  const oppHand = actorHandLen(state, oppSlot);
+  const selfHp = actorHpVal(state, actorSlot);
+  const oppHp = actorHpVal(state, oppSlot);
+  const th = effect.threshold | 0;
+  const lastPlayBySlot = state.lastPlayBySlot || [null, null];
+  switch (mode) {
+    case "opponentHandGte":
+      return oppHand >= th;
+    case "selfHandGte":
+      return selfHand >= th;
+    case "selfHpLte":
+      return selfHp <= th;
+    case "opponentHpGte":
+      return oppHp >= th;
+    case "opponentHandLte":
+      return oppHand <= th;
+    case "opponentHpLte":
+      return oppHp <= th;
+    case "opponentLastCardIdIn": {
+      const ids = Array.isArray(effect.cardIds) ? effect.cardIds : [];
+      const last = lastPlayBySlot[oppSlot];
+      return last != null && ids.includes(last);
+    }
+    default:
+      return false;
+  }
+}
+
+function aggregateBonusVisual(card, duelCtx) {
+  if (!duelCtx?.state) return "neutral";
+  const { state, actorSlot } = duelCtx;
+  const eff = card.effects || [];
+  const tracked = eff.filter(
+    (e) =>
+      e.type === "damageIf" ||
+      e.type === "healIf" ||
+      e.type === "attackIfFirstLockerResolve"
+  );
+  if (!tracked.length) return "neutral";
+  const marks = [];
+  for (const e of tracked) {
+    if (e.type === "damageIf" || e.type === "healIf") {
+      marks.push(evalIfEffectForActor(e, state, actorSlot) ? "met" : "unmet");
+    } else if (e.type === "attackIfFirstLockerResolve") {
+      if (state.firstLocker == null) marks.push("unknown");
+      else if (state.firstLocker === actorSlot) marks.push("met");
+      else marks.push("unmet");
+    }
+  }
+  if (marks.includes("unmet")) return "unmet";
+  if (marks.includes("unknown")) return "unknown";
+  if (marks.every((m) => m === "met")) return "met";
+  return "neutral";
+}
+
+function computeBonusStartIndex(parts, eff) {
+  const hasIf = eff.some(
+    (e) =>
+      e.type === "damageIf" ||
+      e.type === "healIf" ||
+      e.type === "attackIfFirstLockerResolve"
+  );
+  if (!hasIf) return -1;
+  const candidates = [];
+  const condIdx = parts.findIndex((s) => s.c === "condition");
+  if (condIdx >= 0) {
+    let bonusStart = condIdx;
+    while (bonusStart > 0 && parts[bonusStart - 1].c === "muted") {
+      const ixMuted = bonusStart - 1;
+      if (ixMuted > 0) {
+        const before = parts[ixMuted - 1].c;
+        const mutedTxt = (parts[ixMuted].t || "").trim();
+        if (
+          before === "draw" ||
+          before === "heal" ||
+          before === "damage" ||
+          before === "discard" ||
+          (before === "cap" && mutedTxt === "に。")
+        ) {
+          break;
+        }
+      }
+      bonusStart = ixMuted;
+    }
+    candidates.push(bonusStart);
+  }
+  if (eff.some((e) => e.type === "attackIfFirstLockerResolve")) {
+    const ix = parts.findIndex(
+      (p) => typeof p.t === "string" && p.t.includes("先行確定")
+    );
+    if (ix >= 0) candidates.push(ix);
+  }
+  if (!candidates.length) return -1;
+  return Math.min(...candidates);
+}
+
+function renderCardBody(container, card, duelCtx) {
   container.textContent = "";
   const parts = card.body || [];
   const eff = card.effects || [];
-  const hasIf = eff.some(
-    (e) => e.type === "damageIf" || e.type === "healIf"
-  );
+  const bonusStart = computeBonusStartIndex(parts, eff);
 
   function appendSpan(seg) {
     const span = document.createElement("span");
@@ -161,56 +269,44 @@ function renderCardBody(container, card) {
     return span;
   }
 
-  if (!hasIf) {
+  if (bonusStart < 0) {
     for (const seg of parts) {
       container.appendChild(appendSpan(seg));
     }
     return;
-  }
-
-  const condIdx = parts.findIndex((s) => s.c === "condition");
-  if (condIdx < 0) {
-    for (const seg of parts) {
-      container.appendChild(appendSpan(seg));
-    }
-    return;
-  }
-
-  let bonusStart = condIdx;
-  while (bonusStart > 0 && parts[bonusStart - 1].c === "muted") {
-    const ixMuted = bonusStart - 1;
-    if (ixMuted > 0) {
-      const before = parts[ixMuted - 1].c;
-      const mutedTxt = (parts[ixMuted].t || "").trim();
-      if (
-        before === "draw" ||
-        before === "heal" ||
-        before === "damage" ||
-        before === "discard" ||
-        (before === "cap" && mutedTxt === "に。")
-      ) {
-        break;
-      }
-    }
-    bonusStart = ixMuted;
   }
 
   for (let i = 0; i < bonusStart; i++) {
     container.appendChild(appendSpan(parts[i]));
   }
   const wrap = document.createElement("div");
+  const vis = aggregateBonusVisual(card, duelCtx);
   wrap.className = "card-body-bonus-wrap";
+  if (vis === "met") wrap.classList.add("card-body-bonus--met");
+  else if (vis === "unmet") wrap.classList.add("card-body-bonus--unmet");
+  else if (vis === "unknown") wrap.classList.add("card-body-bonus--unknown");
+  else wrap.classList.add("card-body-bonus--neutral");
+
   const lab = document.createElement("div");
   lab.className = "card-body-bonus-label";
   lab.textContent = "追加効果（条件）";
   wrap.appendChild(lab);
+
+  const badge = document.createElement("div");
+  badge.className = "card-body-bonus-badge";
+  if (vis === "met") badge.textContent = "成立";
+  else if (vis === "unmet") badge.textContent = "未成立";
+  else if (vis === "unknown") badge.textContent = "未確定";
+  else badge.textContent = "対戦外";
+  wrap.appendChild(badge);
+
   for (let i = bonusStart; i < parts.length; i++) {
     wrap.appendChild(appendSpan(parts[i]));
   }
   container.appendChild(wrap);
 }
 
-function makeCardFace(card, { wide } = {}) {
+function makeCardFace(card, { wide, duelCtx } = {}) {
   const root = document.createElement("div");
   root.className = wide ? "card-face wide" : "card-face";
   if (card?.id) root.dataset.cardId = card.id;
@@ -237,7 +333,7 @@ function makeCardFace(card, { wide } = {}) {
 
   const body = document.createElement("div");
   body.className = "card-body";
-  renderCardBody(body, card);
+  renderCardBody(body, card, duelCtx);
 
   bodyPanel.appendChild(body);
   inner.append(headPanel, bodyPanel);
@@ -380,6 +476,38 @@ function validateDeckClient(ids) {
   return validateDeckCounts(ids);
 }
 
+const DECK_CODE_PREFIX = "SCG1|";
+
+function encodeDeckCode(cardIds) {
+  if (!Array.isArray(cardIds) || cardIds.length !== 20) return "";
+  return `${DECK_CODE_PREFIX}${cardIds.join("|")}`;
+}
+
+function decodeDeckCode(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return { ok: false, reason: "デッキコードが空です。" };
+  const body = s.startsWith(DECK_CODE_PREFIX) ? s.slice(DECK_CODE_PREFIX.length) : s;
+  const ids = body.split("|").map((x) => x.trim()).filter(Boolean);
+  if (ids.length !== 20) {
+    return {
+      ok: false,
+      reason: "形式が不正です。SCG1| で始まり、20枚のカードIDを | で区切ります。",
+    };
+  }
+  const v = validateDeckClient(ids);
+  if (!v.ok) return v;
+  return { ok: true, cardIds: ids };
+}
+
+function prefillLobbyDeckCodeFromSelect() {
+  const ta = document.getElementById("lobby-deck-code");
+  if (!ta) return;
+  const ids = lobbyChosenDeckIds();
+  if (ids && ids.length === 20) {
+    ta.value = encodeDeckCode(ids);
+  }
+}
+
 function onSkyWayLobby(msg) {
   if (msg.catalog?.cards) {
     for (const c of msg.catalog.cards) {
@@ -393,14 +521,6 @@ function onSkyWayLobby(msg) {
   const chk = $("#chk-ready");
   const pl = msg.players?.[slot];
   if (chk && pl) chk.checked = !!pl.ready;
-  if (
-    skywaySession?._autoDeckOnce &&
-    Array.isArray(msg.catalog?.cards) &&
-    msg.catalog.cards.length > 0
-  ) {
-    skywaySession._autoDeckOnce = false;
-    autoSendDeckIfPossible();
-  }
 }
 
 function renderLobbyPlayers(players) {
@@ -413,31 +533,12 @@ function renderLobbyPlayers(players) {
     const right = document.createElement("span");
     const bits = [];
     if (p.hasDeck) bits.push("デッキOK");
-    else bits.push("デッキ未送信");
+    else bits.push("デッキ未設定");
     if (p.ready) bits.push("準備OK");
     right.textContent = bits.join(" · ");
     li.append(left, right);
     ul.appendChild(li);
   });
-}
-
-function autoSendDeckIfPossible() {
-  let ids = lobbyChosenDeckIds();
-  if (!ids || ids.length !== 20) {
-    const saved = loadSavedDeck();
-    ids =
-      saved?.length === 20
-        ? saved
-        : initialDeckIds.length === 20
-          ? initialDeckIds.slice()
-          : null;
-  }
-  if (ids?.length === 20) {
-    const v = validateDeckClient(ids);
-    if (v.ok) {
-      sendDeckToServer(ids);
-    }
-  }
 }
 
 let lastBattleLogSeq = 0;
@@ -458,14 +559,25 @@ function applyDuelZoomClass() {
   }
 }
 
-function openCardZoomPreview(cardId) {
+function openCardZoomPreview(cardId, { actorSlot } = {}) {
   const def = catalogById[cardId];
   if (!def) return;
   const mount = document.getElementById("card-zoom-mount");
   const back = document.getElementById("card-zoom-backdrop");
   if (!mount || !back) return;
   mount.textContent = "";
-  mount.appendChild(makeCardFace(def, { wide: true }));
+  const duel = document.documentElement.classList.contains("scg-duel-view");
+  const st = lastDuelGameState;
+  let duelCtx = null;
+  if (
+    duel &&
+    st &&
+    typeof actorSlot === "number" &&
+    (actorSlot === 0 || actorSlot === 1)
+  ) {
+    duelCtx = { state: st, actorSlot };
+  }
+  mount.appendChild(makeCardFace(def, { wide: true, duelCtx }));
   back.hidden = false;
   document.body.classList.add("scg-card-zoom-open");
   document.documentElement.classList.add("scg-card-zoom-open");
@@ -782,6 +894,10 @@ function onGameState(state) {
 
   const myLock = !!state.you.roundLocked;
   const opLock = !!state.opponent.roundLocked;
+  const duelActorYou = state.youAre | 0;
+  const duelActorOpp = 1 - duelActorYou;
+  const selfDuelCtx = { state, actorSlot: duelActorYou };
+  const oppDuelCtx = { state, actorSlot: duelActorOpp };
   if (myLock) pendingChooseDiscard = null;
 
   const badgeSelf = $("#self-lock-badge");
@@ -811,12 +927,12 @@ function onGameState(state) {
     oppStrip.textContent = "";
     const oh = state.opponent.hand || [];
     for (const c of oh) {
-      const el = makeCardFace(c);
+      const el = makeCardFace(c, { duelCtx: oppDuelCtx });
       el.title = "クリックで拡大表示";
       el.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        openCardZoomPreview(c.id);
+        openCardZoomPreview(c.id, { actorSlot: duelActorOpp });
       });
       oppStrip.appendChild(el);
     }
@@ -830,7 +946,7 @@ function onGameState(state) {
   const hand = $("#hand");
   hand.textContent = "";
   state.you.hand.forEach((card, idx) => {
-    const el = makeCardFace(card);
+    const el = makeCardFace(card, { duelCtx: selfDuelCtx });
     el.dataset.index = String(idx);
     const pend = pendingChooseDiscard;
     const affordable = canPlay && (card.cost | 0) <= state.you.costPool;
@@ -861,7 +977,7 @@ function onGameState(state) {
       if (ev.ctrlKey || ev.metaKey) {
         ev.preventDefault();
         ev.stopPropagation();
-        openCardZoomPreview(card.id);
+        openCardZoomPreview(card.id, { actorSlot: duelActorYou });
         return;
       }
       if (!canPlay) return;
@@ -1269,7 +1385,7 @@ function wireUi() {
       $("#lobby-code").textContent = code;
       $("#chk-ready").checked = false;
       fillLobbyDeckSelect();
-      autoSendDeckIfPossible();
+      prefillLobbyDeckCodeFromSelect();
     } catch (e) {
       console.error(e);
       toast(String(e.message || e));
@@ -1313,7 +1429,7 @@ function wireUi() {
       $("#lobby-code").textContent = code;
       $("#chk-ready").checked = false;
       fillLobbyDeckSelect();
-      skywaySession._autoDeckOnce = true;
+      prefillLobbyDeckCodeFromSelect();
     } catch (e) {
       console.error(e);
       toast(String(e.message || e));
@@ -1354,37 +1470,37 @@ function wireUi() {
     }
   });
 
-  $("#btn-use-saved-deck").addEventListener("click", () => {
-    const sel = $("#select-lobby-deck");
-    if (sel?.value === "__initial__") {
-      toast("上のリストから保存デッキを選んでください");
+  $("#btn-lobby-deck-apply")?.addEventListener("click", () => {
+    const ta = document.getElementById("lobby-deck-code");
+    const raw = ta?.value || "";
+    const dec = decodeDeckCode(raw);
+    if (!dec.ok || !dec.cardIds) {
+      toast(dec.reason);
       return;
     }
+    sendDeckToServer(dec.cardIds);
+    toast("デッキコードを取り込み、接続先に設定しました");
+  });
+
+  $("#btn-lobby-deck-export")?.addEventListener("click", async () => {
     const ids = lobbyChosenDeckIds();
     if (!ids) {
-      toast("保存されたデッキがありません");
+      toast("エクスポートできる20枚のデッキがありません");
       return;
     }
-    const v = validateDeckClient(ids);
-    if (!v.ok) {
-      toast(v.reason);
-      return;
+    const code = encodeDeckCode(ids);
+    const ta = document.getElementById("lobby-deck-code");
+    if (ta) ta.value = code;
+    try {
+      await navigator.clipboard.writeText(code);
+      toast("デッキコードをコピーしました");
+    } catch {
+      toast("クリップボードにコピーできませんでした（欄に表示済みです）");
     }
-    sendDeckToServer(ids);
-    toast("保存デッキを送信しました");
   });
 
   $("#select-lobby-deck")?.addEventListener("change", (e) => {
     localStorage.setItem(LS_LOBBY_DECK, e.target.value);
-  });
-
-  $("#btn-use-initial-deck").addEventListener("click", () => {
-    if (initialDeckIds.length !== 20) {
-      toast("初期デッキを読み込めません");
-      return;
-    }
-    sendDeckToServer(initialDeckIds.slice());
-    toast("初期デッキを送信しました");
   });
 
   $("#chk-ready").addEventListener("change", (e) => {
@@ -1463,6 +1579,34 @@ function wireUi() {
     syncDeckNameInput();
     toast("デッキを保存しました");
     renderDeckBuilder();
+  });
+
+  $("#btn-deck-export-code")?.addEventListener("click", async () => {
+    const v = validateDeckClient(currentDeck);
+    if (!v.ok) {
+      toast("20枚そろっていないためコード化できません");
+      return;
+    }
+    const code = encodeDeckCode(currentDeck);
+    try {
+      await navigator.clipboard.writeText(code);
+      toast("デッキコードをコピーしました");
+    } catch {
+      window.prompt("コピーできない環境のため、手動でコピーしてください", code);
+    }
+  });
+
+  $("#btn-deck-import-code")?.addEventListener("click", () => {
+    const raw = window.prompt("デッキコードを貼り付け（SCG1|で始まる20枚）");
+    if (raw == null) return;
+    const dec = decodeDeckCode(raw);
+    if (!dec.ok || !dec.cardIds) {
+      toast(dec.reason);
+      return;
+    }
+    currentDeck = dec.cardIds.slice();
+    renderDeckBuilder();
+    toast("デッキ内容をコードから読み込みました（保存は「保存」で確定）");
   });
 
   $("#btn-deck-editor-back")?.addEventListener("click", () => {

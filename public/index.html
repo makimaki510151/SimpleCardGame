@@ -99,23 +99,36 @@
           </div>
           <ul id="lobby-players" class="lobby-list"></ul>
           <div class="lobby-deck-row">
-            <label for="select-lobby-deck">送信するデッキ</label>
+            <label for="select-lobby-deck">コードに出すデッキ</label>
             <select id="select-lobby-deck" class="select-input"></select>
           </div>
+          <div class="lobby-deck-code-panel">
+            <label for="lobby-deck-code">デッキコード（貼り付けて「コードでデッキに設定」）</label>
+            <textarea
+              id="lobby-deck-code"
+              class="input lobby-deck-code-input"
+              rows="3"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="SCG1|card_id|card_id|…（20枚）"
+            ></textarea>
+            <div class="lobby-deck-code-actions">
+              <button type="button" class="btn primary" id="btn-lobby-deck-apply">
+                コードでデッキに設定
+              </button>
+              <button type="button" class="btn ghost" id="btn-lobby-deck-export">
+                選択中デッキのコードをコピー
+              </button>
+            </div>
+          </div>
           <div class="lobby-actions stack">
-            <button type="button" class="btn" id="btn-use-saved-deck">
-              保存デッキを送る
-            </button>
-            <button type="button" class="btn ghost" id="btn-use-initial-deck">
-              初期デッキを送る
-            </button>
             <label class="check">
               <input type="checkbox" id="chk-ready" />
               準備OK
             </label>
           </div>
           <p class="hint">
-            リストでデッキを選び「保存デッキを送る」で送信（初期は「初期デッキ」）。デッキ構築は一覧から「編集」で開きます（最大16デッキ）。
+            対戦に使うデッキはコードで共有します。上のリストで元にするデッキを選び「コードをコピー」するか、貼り付けて「コードでデッキに設定」してください。
           </p>
         </div>
       </section>
@@ -163,6 +176,12 @@
             </button>
             <button type="button" class="btn ghost" id="btn-deck-delete-editor">
               このデッキを削除
+            </button>
+            <button type="button" class="btn ghost" id="btn-deck-export-code">
+              デッキコードをコピー
+            </button>
+            <button type="button" class="btn ghost" id="btn-deck-import-code">
+              コードから読み込み
             </button>
           </div>
           <div class="deck-footer">

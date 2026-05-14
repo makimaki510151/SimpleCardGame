@@ -55966,6 +55966,7 @@ function publicSnapshot(game, viewerIndex, cardById) {
     roundNumber: game.roundNumber,
     youAre: viewerIndex,
     firstLocker: game.firstLocker,
+    lastPlayBySlot: (game.lastPlayBySlot || [null, null]).slice(),
     battleLog: (game.log || []).slice()
   };
 }
