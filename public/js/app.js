@@ -229,6 +229,22 @@ function aggregateBonusVisual(card, duelCtx) {
   return "neutral";
 }
 
+/** 無条件の数値の直後に続く「，相手手札…」など、条件句へ続く前置き muted（本文では bonus 側にまとめる） */
+function isCommaLinkedConditionalPreamble(parts, ixMuted) {
+  if (ixMuted <= 0) return false;
+  const before = parts[ixMuted - 1].c;
+  if (
+    before !== "draw" &&
+    before !== "heal" &&
+    before !== "damage" &&
+    before !== "discard"
+  ) {
+    return false;
+  }
+  const t = String(parts[ixMuted]?.t ?? "").trim();
+  return /^[，、](相手|自身)/.test(t);
+}
+
 function computeBonusStartIndex(parts, eff) {
   const hasIf = eff.some(
     (e) =>
@@ -254,7 +270,9 @@ function computeBonusStartIndex(parts, eff) {
           before === "discard" ||
           (before === "cap" && mutedTxt === "に。")
         ) {
-          break;
+          if (!isCommaLinkedConditionalPreamble(parts, ixMuted)) {
+            break;
+          }
         }
       }
       bonusStart = ixMuted;
