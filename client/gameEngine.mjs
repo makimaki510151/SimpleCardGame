@@ -92,6 +92,9 @@ export function createPlayerState(deckIds) {
     maxCost: 0,
     turnCount: 0,
     lastPlayedSpeaker: null,
+    lastPlayedTone: null,
+    lastPlayedCardId: null,
+    lastPlayDiscardCount: 0,
     statuses: createEmptyStatuses(),
   };
 }
@@ -126,7 +129,7 @@ function drawCardsStrict(p, n) {
 
 function discardRandomFromHand(p, n) {
   const take = Math.min(n | 0, p.hand.length);
-  if (take <= 0) return;
+  if (take <= 0) return 0;
   const idxs = p.hand.map((_, i) => i);
   shuffle(idxs);
   const toRemove = idxs.slice(0, take).sort((a, b) => b - a);
@@ -134,6 +137,20 @@ function discardRandomFromHand(p, n) {
     const id = p.hand.splice(ix, 1)[0];
     p.discard.push(id);
   }
+  return take;
+}
+
+function discardAllFromHand(p) {
+  const n = p.hand.length;
+  if (n <= 0) return 0;
+  while (p.hand.length > 0) {
+    p.discard.push(p.hand.pop());
+  }
+  return n;
+}
+
+function recordDiscard(ctx, n) {
+  if (ctx && n > 0) ctx.discardCountThisPlay = (ctx.discardCountThisPlay | 0) + n;
 }
 
 function evalCondition(game, actorIndex, cond) {
@@ -158,6 +175,14 @@ function evalCondition(game, actorIndex, cond) {
       const oppSpeaker = opp.lastPlayedSpeaker;
       return oppSpeaker != null && oppSpeaker === cond.speaker;
     }
+    case "opponentLastSpeakerIsNot": {
+      const oppSpeaker = opp.lastPlayedSpeaker;
+      return oppSpeaker == null || oppSpeaker !== cond.speaker;
+    }
+    case "opponentLastToneIs":
+      return opp.lastPlayedTone != null && opp.lastPlayedTone === cond.tone;
+    case "opponentLastToneIsNot":
+      return opp.lastPlayedTone == null || opp.lastPlayedTone !== cond.tone;
     default:
       return false;
   }
@@ -186,10 +211,18 @@ export function effectivePlayCost(cardDef, lastPlayedSpeaker, mutedThisTurn) {
   return Math.max(0, base - reduction);
 }
 
-function damageMultiplier(cardDef, speakerCombo) {
+function damageMultiplier(cardDef, speakerCombo, game, actorIndex) {
   if (!speakerCombo) return 1;
   const se = cardDef.speaker_effect;
-  if (!se || se.damage_multiplier == null) return 1;
+  if (!se) return 1;
+  if (se.damage_multiplier_if) {
+    const cond = se.damage_multiplier_if;
+    if (evalCondition(game, actorIndex, cond)) {
+      return Math.max(1, cond.multiplier | 0);
+    }
+    return 1;
+  }
+  if (se.damage_multiplier == null) return 1;
   return Math.max(1, se.damage_multiplier | 0);
 }
 
@@ -264,6 +297,12 @@ function describeIfClause(e) {
       return `直前が「${e.speaker || "?"}」`;
     case "opponentLastSpeakerIs":
       return `相手直前が「${e.speaker || "?"}」`;
+    case "opponentLastSpeakerIsNot":
+      return `相手直前が「${e.speaker || "?"}」以外`;
+    case "opponentLastToneIs":
+      return `相手直前が【${TONE_LABEL[e.tone] || e.tone || "?"}】`;
+    case "opponentLastToneIsNot":
+      return `相手直前が【${TONE_LABEL[e.tone] || e.tone || "?"}】以外`;
     default:
       return "？";
   }
@@ -286,6 +325,20 @@ function describeEffectLine(e) {
       return `自身手札ランダム廃棄${v}`;
     case "damageSelf":
       return `自身に${v}ダメージ`;
+    case "damageSelfIf":
+      return `${describeIfClause(e)}で自身に${v}ダメージ`;
+    case "drawIf":
+      return `${describeIfClause(e)}でドロー${v}`;
+    case "discardAllSelf":
+      return "自身の手札をすべて捨てる";
+    case "statusOpponentIf":
+      return `${describeIfClause(e)}で相手に${STATUS_LABEL[e.status] || e.status}${e.turns | 0}T`;
+    case "damageFromPrevDiscard":
+      return `直前「${e.prevCardId || "?"}」の捨て枚数ダメ`;
+    default:
+      break;
+  }
+  switch (e.type) {
     case "statusOpponent":
       return `相手に${STATUS_LABEL[e.status] || e.status}${e.turns | 0}T`;
     case "statusSelf":
@@ -299,7 +352,8 @@ function applyEffectList(game, actorIndex, effects, ctx) {
   const opponentIndex = 1 - actorIndex;
   const self = game.players[actorIndex];
   const opp = game.players[opponentIndex];
-  const mult = ctx.damageMultiplier || 1;
+  const mult = ctx?.damageMultiplier || 1;
+  const skipSelfDmg = !!ctx?.negateSelfDamage;
 
   for (const e of effects || []) {
     if (e.type === "damage") {
@@ -310,12 +364,27 @@ function applyEffectList(game, actorIndex, effects, ctx) {
     } else if (e.type === "draw") {
       const drawn = drawCards(self, e.value | 0);
       self.hand.push(...drawn);
+    } else if (e.type === "drawIf") {
+      if (evalCondition(game, actorIndex, e)) {
+        const drawn = drawCards(self, e.value | 0);
+        self.hand.push(...drawn);
+      }
     } else if (e.type === "discardSelf") {
-      discardRandomFromHand(self, e.value | 0);
+      recordDiscard(ctx, discardRandomFromHand(self, e.value | 0));
+    } else if (e.type === "discardAllSelf") {
+      recordDiscard(ctx, discardAllFromHand(self));
+    } else if (e.type === "damageSelf") {
+      if (!skipSelfDmg) {
+        self.hp = Math.max(0, self.hp - (e.value | 0));
+      }
     } else if (e.type === "damageIf") {
       if (evalCondition(game, actorIndex, e)) {
         const d = scaledDamage(e.value, mult);
         opp.hp = Math.max(0, opp.hp - d);
+      }
+    } else if (e.type === "damageSelfIf") {
+      if (!skipSelfDmg && evalCondition(game, actorIndex, e)) {
+        self.hp = Math.max(0, self.hp - (e.value | 0));
       }
     } else if (e.type === "healIf") {
       if (evalCondition(game, actorIndex, e)) {
@@ -323,8 +392,18 @@ function applyEffectList(game, actorIndex, effects, ctx) {
       }
     } else if (e.type === "statusOpponent") {
       applyStatus(opp, e.status, e.turns ?? 1);
+    } else if (e.type === "statusOpponentIf") {
+      if (evalCondition(game, actorIndex, e)) {
+        applyStatus(opp, e.status, e.turns ?? 1);
+      }
     } else if (e.type === "statusSelf") {
       applyStatus(self, e.status, e.turns ?? 1);
+    } else if (e.type === "damageFromPrevDiscard") {
+      const prevId = e.prevCardId;
+      if (prevId && ctx?.prevCardId === prevId && (ctx.prevDiscardCount | 0) > 0) {
+        const d = scaledDamage(ctx.prevDiscardCount, mult);
+        opp.hp = Math.max(0, opp.hp - d);
+      }
     }
   }
 }
@@ -379,6 +458,7 @@ export function startTurn(game, playerIndex) {
   p.turnCount += 1;
   p.costPool = p.maxCost;
   p.lastPlayedSpeaker = null;
+  p.lastPlayedTone = null;
 
   const drawRes = drawCardsStrict(p, DRAW_PER_TURN);
   if (!drawRes.ok) {
@@ -457,8 +537,13 @@ export function playCard(game, playerIndex, handIndex, cardById) {
   p.discard.push(cardId);
 
   const ctx = {
-    damageMultiplier: damageMultiplier(def, speakerCombo),
+    damageMultiplier: damageMultiplier(def, speakerCombo, game, playerIndex),
     speakerCombo,
+    negateSelfDamage:
+      speakerCombo && !!def.speaker_effect?.negate_self_damage,
+    prevCardId: p.lastPlayedCardId,
+    prevDiscardCount: p.lastPlayDiscardCount | 0,
+    discardCountThisPlay: 0,
   };
 
   if (speakerCombo) {
@@ -472,6 +557,9 @@ export function playCard(game, playerIndex, handIndex, cardById) {
 
   const prevSpeaker = p.lastPlayedSpeaker;
   p.lastPlayedSpeaker = def.speaker || null;
+  p.lastPlayedTone = def.tone || null;
+  p.lastPlayedCardId = cardId;
+  p.lastPlayDiscardCount = ctx.discardCountThisPlay | 0;
 
   if ((st.tsubo | 0) > 0) {
     p.hp = Math.max(0, p.hp - 1);
@@ -544,6 +632,7 @@ export function publicSnapshot(game, viewerIndex, cardById) {
       costPool: self.costPool,
       maxCost: self.maxCost,
       lastPlayedSpeaker: self.lastPlayedSpeaker,
+      lastPlayedTone: self.lastPlayedTone,
       turnCount: self.turnCount,
       statuses: publicStatuses(self),
     },
@@ -555,6 +644,7 @@ export function publicSnapshot(game, viewerIndex, cardById) {
       deckCount: opp.deck.length,
       discardCount: opp.discard.length,
       lastPlayedSpeaker: opp.lastPlayedSpeaker,
+      lastPlayedTone: opp.lastPlayedTone,
       costPool: opp.costPool,
       maxCost: opp.maxCost,
       statuses: publicStatuses(opp),

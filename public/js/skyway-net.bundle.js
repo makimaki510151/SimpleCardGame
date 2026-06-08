@@ -55584,6 +55584,12 @@ var TONE = {
   CHAOS: "chaos",
   HABIT: "habit"
 };
+var TONE_LABEL = {
+  passion: "\u71B1\u91CF",
+  logical: "\u51B7\u5FB9",
+  chaos: "\u6CE5\u6CBC",
+  habit: "\u53E3\u7656"
+};
 var STATUS = {
   TSUBO: "tsubo",
   HIYORI: "hiyori",
@@ -55634,6 +55640,9 @@ function createPlayerState(deckIds) {
     maxCost: 0,
     turnCount: 0,
     lastPlayedSpeaker: null,
+    lastPlayedTone: null,
+    lastPlayedCardId: null,
+    lastPlayDiscardCount: 0,
     statuses: createEmptyStatuses()
   };
 }
@@ -55662,7 +55671,7 @@ function drawCardsStrict(p, n2) {
 }
 function discardRandomFromHand(p, n2) {
   const take = Math.min(n2 | 0, p.hand.length);
-  if (take <= 0) return;
+  if (take <= 0) return 0;
   const idxs = p.hand.map((_, i) => i);
   shuffle(idxs);
   const toRemove = idxs.slice(0, take).sort((a, b) => b - a);
@@ -55670,6 +55679,18 @@ function discardRandomFromHand(p, n2) {
     const id = p.hand.splice(ix, 1)[0];
     p.discard.push(id);
   }
+  return take;
+}
+function discardAllFromHand(p) {
+  const n2 = p.hand.length;
+  if (n2 <= 0) return 0;
+  while (p.hand.length > 0) {
+    p.discard.push(p.hand.pop());
+  }
+  return n2;
+}
+function recordDiscard(ctx, n2) {
+  if (ctx && n2 > 0) ctx.discardCountThisPlay = (ctx.discardCountThisPlay | 0) + n2;
 }
 function evalCondition(game, actorIndex, cond) {
   const self2 = game.players[actorIndex];
@@ -55693,6 +55714,14 @@ function evalCondition(game, actorIndex, cond) {
       const oppSpeaker = opp.lastPlayedSpeaker;
       return oppSpeaker != null && oppSpeaker === cond.speaker;
     }
+    case "opponentLastSpeakerIsNot": {
+      const oppSpeaker = opp.lastPlayedSpeaker;
+      return oppSpeaker == null || oppSpeaker !== cond.speaker;
+    }
+    case "opponentLastToneIs":
+      return opp.lastPlayedTone != null && opp.lastPlayedTone === cond.tone;
+    case "opponentLastToneIsNot":
+      return opp.lastPlayedTone == null || opp.lastPlayedTone !== cond.tone;
     default:
       return false;
   }
@@ -55717,10 +55746,18 @@ function effectivePlayCost(cardDef, lastPlayedSpeaker, mutedThisTurn) {
   const reduction = speakerCostReduction(cardDef, true);
   return Math.max(0, base - reduction);
 }
-function damageMultiplier(cardDef, speakerCombo) {
+function damageMultiplier(cardDef, speakerCombo, game, actorIndex) {
   if (!speakerCombo) return 1;
   const se = cardDef.speaker_effect;
-  if (!se || se.damage_multiplier == null) return 1;
+  if (!se) return 1;
+  if (se.damage_multiplier_if) {
+    const cond = se.damage_multiplier_if;
+    if (evalCondition(game, actorIndex, cond)) {
+      return Math.max(1, cond.multiplier | 0);
+    }
+    return 1;
+  }
+  if (se.damage_multiplier == null) return 1;
   return Math.max(1, se.damage_multiplier | 0);
 }
 function scaledDamage(value, mult) {
@@ -55788,6 +55825,12 @@ function describeIfClause(e2) {
       return `\u76F4\u524D\u304C\u300C${e2.speaker || "?"}\u300D`;
     case "opponentLastSpeakerIs":
       return `\u76F8\u624B\u76F4\u524D\u304C\u300C${e2.speaker || "?"}\u300D`;
+    case "opponentLastSpeakerIsNot":
+      return `\u76F8\u624B\u76F4\u524D\u304C\u300C${e2.speaker || "?"}\u300D\u4EE5\u5916`;
+    case "opponentLastToneIs":
+      return `\u76F8\u624B\u76F4\u524D\u304C\u3010${TONE_LABEL[e2.tone] || e2.tone || "?"}\u3011`;
+    case "opponentLastToneIsNot":
+      return `\u76F8\u624B\u76F4\u524D\u304C\u3010${TONE_LABEL[e2.tone] || e2.tone || "?"}\u3011\u4EE5\u5916`;
     default:
       return "\uFF1F";
   }
@@ -55809,6 +55852,20 @@ function describeEffectLine(e2) {
       return `\u81EA\u8EAB\u624B\u672D\u30E9\u30F3\u30C0\u30E0\u5EC3\u68C4${v}`;
     case "damageSelf":
       return `\u81EA\u8EAB\u306B${v}\u30C0\u30E1\u30FC\u30B8`;
+    case "damageSelfIf":
+      return `${describeIfClause(e2)}\u3067\u81EA\u8EAB\u306B${v}\u30C0\u30E1\u30FC\u30B8`;
+    case "drawIf":
+      return `${describeIfClause(e2)}\u3067\u30C9\u30ED\u30FC${v}`;
+    case "discardAllSelf":
+      return "\u81EA\u8EAB\u306E\u624B\u672D\u3092\u3059\u3079\u3066\u6368\u3066\u308B";
+    case "statusOpponentIf":
+      return `${describeIfClause(e2)}\u3067\u76F8\u624B\u306B${STATUS_LABEL[e2.status] || e2.status}${e2.turns | 0}T`;
+    case "damageFromPrevDiscard":
+      return `\u76F4\u524D\u300C${e2.prevCardId || "?"}\u300D\u306E\u6368\u3066\u679A\u6570\u30C0\u30E1`;
+    default:
+      break;
+  }
+  switch (e2.type) {
     case "statusOpponent":
       return `\u76F8\u624B\u306B${STATUS_LABEL[e2.status] || e2.status}${e2.turns | 0}T`;
     case "statusSelf":
@@ -55821,7 +55878,8 @@ function applyEffectList(game, actorIndex, effects, ctx) {
   const opponentIndex = 1 - actorIndex;
   const self2 = game.players[actorIndex];
   const opp = game.players[opponentIndex];
-  const mult = ctx.damageMultiplier || 1;
+  const mult = ctx?.damageMultiplier || 1;
+  const skipSelfDmg = !!ctx?.negateSelfDamage;
   for (const e2 of effects || []) {
     if (e2.type === "damage") {
       const d = scaledDamage(e2.value, mult);
@@ -55831,12 +55889,27 @@ function applyEffectList(game, actorIndex, effects, ctx) {
     } else if (e2.type === "draw") {
       const drawn = drawCards(self2, e2.value | 0);
       self2.hand.push(...drawn);
+    } else if (e2.type === "drawIf") {
+      if (evalCondition(game, actorIndex, e2)) {
+        const drawn = drawCards(self2, e2.value | 0);
+        self2.hand.push(...drawn);
+      }
     } else if (e2.type === "discardSelf") {
-      discardRandomFromHand(self2, e2.value | 0);
+      recordDiscard(ctx, discardRandomFromHand(self2, e2.value | 0));
+    } else if (e2.type === "discardAllSelf") {
+      recordDiscard(ctx, discardAllFromHand(self2));
+    } else if (e2.type === "damageSelf") {
+      if (!skipSelfDmg) {
+        self2.hp = Math.max(0, self2.hp - (e2.value | 0));
+      }
     } else if (e2.type === "damageIf") {
       if (evalCondition(game, actorIndex, e2)) {
         const d = scaledDamage(e2.value, mult);
         opp.hp = Math.max(0, opp.hp - d);
+      }
+    } else if (e2.type === "damageSelfIf") {
+      if (!skipSelfDmg && evalCondition(game, actorIndex, e2)) {
+        self2.hp = Math.max(0, self2.hp - (e2.value | 0));
       }
     } else if (e2.type === "healIf") {
       if (evalCondition(game, actorIndex, e2)) {
@@ -55844,8 +55917,18 @@ function applyEffectList(game, actorIndex, effects, ctx) {
       }
     } else if (e2.type === "statusOpponent") {
       applyStatus(opp, e2.status, e2.turns ?? 1);
+    } else if (e2.type === "statusOpponentIf") {
+      if (evalCondition(game, actorIndex, e2)) {
+        applyStatus(opp, e2.status, e2.turns ?? 1);
+      }
     } else if (e2.type === "statusSelf") {
       applyStatus(self2, e2.status, e2.turns ?? 1);
+    } else if (e2.type === "damageFromPrevDiscard") {
+      const prevId = e2.prevCardId;
+      if (prevId && ctx?.prevCardId === prevId && (ctx.prevDiscardCount | 0) > 0) {
+        const d = scaledDamage(ctx.prevDiscardCount, mult);
+        opp.hp = Math.max(0, opp.hp - d);
+      }
     }
   }
 }
@@ -55886,6 +55969,7 @@ function startTurn(game, playerIndex) {
   p.turnCount += 1;
   p.costPool = p.maxCost;
   p.lastPlayedSpeaker = null;
+  p.lastPlayedTone = null;
   const drawRes = drawCardsStrict(p, DRAW_PER_TURN);
   if (!drawRes.ok) {
     const winner = 1 - playerIndex;
@@ -55948,8 +56032,12 @@ function playCard(game, playerIndex, handIndex, cardById) {
   p.hand.splice(handIndex, 1);
   p.discard.push(cardId);
   const ctx = {
-    damageMultiplier: damageMultiplier(def, speakerCombo),
-    speakerCombo
+    damageMultiplier: damageMultiplier(def, speakerCombo, game, playerIndex),
+    speakerCombo,
+    negateSelfDamage: speakerCombo && !!def.speaker_effect?.negate_self_damage,
+    prevCardId: p.lastPlayedCardId,
+    prevDiscardCount: p.lastPlayDiscardCount | 0,
+    discardCountThisPlay: 0
   };
   if (speakerCombo) {
     const se = def.speaker_effect;
@@ -55960,6 +56048,9 @@ function playCard(game, playerIndex, handIndex, cardById) {
   applyEffectList(game, playerIndex, cardEffects(def), ctx);
   const prevSpeaker = p.lastPlayedSpeaker;
   p.lastPlayedSpeaker = def.speaker || null;
+  p.lastPlayedTone = def.tone || null;
+  p.lastPlayedCardId = cardId;
+  p.lastPlayDiscardCount = ctx.discardCountThisPlay | 0;
   if ((st.tsubo | 0) > 0) {
     p.hp = Math.max(0, p.hp - 1);
     pushLog(
@@ -56021,6 +56112,7 @@ function publicSnapshot(game, viewerIndex, cardById) {
       costPool: self2.costPool,
       maxCost: self2.maxCost,
       lastPlayedSpeaker: self2.lastPlayedSpeaker,
+      lastPlayedTone: self2.lastPlayedTone,
       turnCount: self2.turnCount,
       statuses: publicStatuses(self2)
     },
@@ -56032,6 +56124,7 @@ function publicSnapshot(game, viewerIndex, cardById) {
       deckCount: opp.deck.length,
       discardCount: opp.discard.length,
       lastPlayedSpeaker: opp.lastPlayedSpeaker,
+      lastPlayedTone: opp.lastPlayedTone,
       costPool: opp.costPool,
       maxCost: opp.maxCost,
       statuses: publicStatuses(opp)

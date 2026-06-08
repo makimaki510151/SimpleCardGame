@@ -9,11 +9,17 @@ const EFFECT_TYPES = new Set([
   "damage",
   "heal",
   "draw",
+  "drawIf",
   "discardSelf",
+  "discardAllSelf",
+  "damageSelf",
+  "damageSelfIf",
   "damageIf",
   "healIf",
   "statusOpponent",
+  "statusOpponentIf",
   "statusSelf",
+  "damageFromPrevDiscard",
 ]);
 
 const STATUS_TYPES = new Set(["tsubo", "hiyori", "mute"]);

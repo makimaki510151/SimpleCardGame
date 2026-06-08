@@ -136,6 +136,12 @@ function describeIfClause(e) {
       return `直前「${e.speaker || "?"}」`;
     case "opponentLastSpeakerIs":
       return `相手直前「${e.speaker || "?"}」`;
+    case "opponentLastSpeakerIsNot":
+      return `相手直前「${e.speaker || "?"}」以外`;
+    case "opponentLastToneIs":
+      return `相手直前【${TONE_LABEL[e.tone] || e.tone || "?"}】`;
+    case "opponentLastToneIsNot":
+      return `相手直前【${TONE_LABEL[e.tone] || e.tone || "?"}】以外`;
     default:
       return "？";
   }
@@ -155,6 +161,49 @@ function formatEffectToken(e, duelCtx) {
       return { text: `手札捨${v}`, tooltip: null };
     case "damageSelf":
       return { text: `自身${v}ダメ`, tooltip: null };
+    case "damageSelfIf": {
+      const met =
+        duelCtx?.state &&
+        evalIfEffectForActor(e, duelCtx.state, duelCtx.actorSlot);
+      const suffix =
+        met === true ? " ✓" : met === false ? " ×" : "";
+      return {
+        text: `${describeIfClause(e)}→自身${v}ダメ${suffix}`,
+        tooltip: null,
+        met,
+      };
+    }
+    case "drawIf": {
+      const met =
+        duelCtx?.state &&
+        evalIfEffectForActor(e, duelCtx.state, duelCtx.actorSlot);
+      const suffix =
+        met === true ? " ✓" : met === false ? " ×" : "";
+      return {
+        text: `${describeIfClause(e)}→ドロー${v}${suffix}`,
+        tooltip: null,
+        met,
+      };
+    }
+    case "discardAllSelf":
+      return { text: "手札全捨", tooltip: null };
+    case "statusOpponentIf": {
+      const met =
+        duelCtx?.state &&
+        evalIfEffectForActor(e, duelCtx.state, duelCtx.actorSlot);
+      const st = e.status;
+      const turns = e.turns | 0;
+      const label = STATUS_LABEL[st] || st;
+      const suffix =
+        met === true ? " ✓" : met === false ? " ×" : "";
+      return {
+        text: `${describeIfClause(e)}→相手${label}${turns}T${suffix}`,
+        tooltip: STATUS_HELP[st] || null,
+        met,
+      };
+    }
+    case "damageFromPrevDiscard":
+      return { text: "直前捨枚数ダメ", tooltip: null };
     case "damageIf": {
       const met =
         duelCtx?.state &&
@@ -360,6 +409,22 @@ function evalIfEffectForActor(effect, state, actorSlot) {
       return selfSpeaker === effect.speaker;
     case "opponentLastSpeakerIs":
       return oppSpeaker === effect.speaker;
+    case "opponentLastSpeakerIsNot":
+      return oppSpeaker == null || oppSpeaker !== effect.speaker;
+    case "opponentLastToneIs": {
+      const oppTone =
+        oppSlot === state.youAre
+          ? state.you.lastPlayedTone
+          : state.opponent.lastPlayedTone;
+      return oppTone != null && oppTone === effect.tone;
+    }
+    case "opponentLastToneIsNot": {
+      const oppTone =
+        oppSlot === state.youAre
+          ? state.you.lastPlayedTone
+          : state.opponent.lastPlayedTone;
+      return oppTone == null || oppTone !== effect.tone;
+    }
     default:
       return false;
   }
@@ -396,6 +461,8 @@ function computeBonusStartIndex(parts, eff) {
       e.type === "damageIf" ||
       e.type === "damageSelfIf" ||
       e.type === "healIf" ||
+      e.type === "drawIf" ||
+      e.type === "statusOpponentIf" ||
       e.type === "attackIfFirstLockerResolve"
   );
   if (!hasIf) return -1;
