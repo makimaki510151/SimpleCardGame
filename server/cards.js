@@ -18,8 +18,13 @@ const EFFECT_TYPES = new Set([
   "healIf",
   "statusOpponent",
   "statusOpponentIf",
+  "statusOpponentAdd",
   "statusSelf",
+  "statusSelfIf",
   "damageFromPrevDiscard",
+  "damageFromHpDiff",
+  "damageFromOpponentHandIf",
+  "toneBanOpponent",
 ]);
 
 const STATUS_TYPES = new Set(["tsubo", "hiyori", "mute"]);
@@ -30,9 +35,22 @@ function validateEffectsList(effects, fileId, ctx) {
     if (!e || typeof e.type !== "string" || !EFFECT_TYPES.has(e.type)) {
       throw new Error(`Card ${fileId}: unknown ${ctx} type ${e?.type}`);
     }
-    if (e.type === "statusOpponent" || e.type === "statusSelf") {
+    if (
+      e.type === "statusOpponent" ||
+      e.type === "statusSelf" ||
+      e.type === "statusOpponentIf" ||
+      e.type === "statusSelfIf" ||
+      e.type === "statusOpponentAdd"
+    ) {
       if (!STATUS_TYPES.has(e.status)) {
         throw new Error(`Card ${fileId}: unknown status ${e.status}`);
+      }
+    }
+    if (e.type === "toneBanOpponent" && Array.isArray(e.tones)) {
+      for (const t of e.tones) {
+        if (!TONE_TYPES.has(t)) {
+          throw new Error(`Card ${fileId}: unknown tone ban ${t}`);
+        }
       }
     }
   }
@@ -74,6 +92,14 @@ function validateCardShape(card, fileId) {
         throw new Error(`Card ${fileId}: speaker_effect.effects must be an array`);
       }
       validateEffectsList(se.effects, fileId, "speaker_effect");
+    }
+    if (se.post_effects != null) {
+      if (!Array.isArray(se.post_effects)) {
+        throw new Error(
+          `Card ${fileId}: speaker_effect.post_effects must be an array`
+        );
+      }
+      validateEffectsList(se.post_effects, fileId, "speaker_effect.post_effects");
     }
   }
 }

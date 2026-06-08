@@ -14,196 +14,6 @@
   "cards": [
     {
       "order": 1,
-      "id": "a_mata_ka",
-      "speaker": "A君",
-      "cost": 1,
-      "text": "またそれ言うの！？",
-      "tone": "habit",
-      "effect": [{ "type": "damage", "value": 1 }],
-      "speaker_effect": { "effects": [{ "type": "draw", "value": 1 }] },
-      "effect_note": "相手1ダメージ",
-      "combo_note": "ドロー1",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 2,
-      "id": "a_urusai",
-      "speaker": "A君",
-      "cost": 3,
-      "text": "うるせぇ！黙れ！",
-      "tone": "passion",
-      "effect": [{ "type": "damage", "value": 4 }],
-      "speaker_effect": { "cost_reduction": 1, "damage_multiplier": 2 },
-      "effect_note": "相手4ダメージ",
-      "combo_note": "コスト-1・ダメ×2",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 3,
-      "id": "a_gomen",
-      "speaker": "A君",
-      "cost": 2,
-      "text": "ごめん、マジで",
-      "tone": "chaos",
-      "effect": [
-        { "type": "heal", "value": 3 },
-        { "type": "statusOpponent", "status": "mute", "turns": 1 }
-      ],
-      "effect_note": "自身回復3・相手にミュート",
-      "combo_note": "コスト-1（標準）",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 4,
-      "id": "a_chain",
-      "speaker": "A君",
-      "cost": 2,
-      "text": "だから言ったじゃん",
-      "tone": "logical",
-      "effect": [{ "type": "damage", "value": 2 }],
-      "speaker_effect": { "effects": [{ "type": "draw", "value": 1 }] },
-      "effect_note": "相手2ダメージ",
-      "combo_note": "ドロー1",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 5,
-      "id": "b_nanda",
-      "speaker": "B君",
-      "cost": 1,
-      "text": "なんだそれ",
-      "tone": "logical",
-      "effect": [{ "type": "damage", "value": 2 }],
-      "effect_note": "相手2ダメージ",
-      "combo_note": "コスト-1（標準）",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 6,
-      "id": "b_yabe",
-      "speaker": "B君",
-      "cost": 2,
-      "text": "やべぇやべぇ",
-      "tone": "chaos",
-      "effect": [
-        { "type": "damage", "value": 2 },
-        { "type": "draw", "value": 1 },
-        { "type": "statusOpponent", "status": "tsubo", "turns": 2 }
-      ],
-      "effect_note": "相手2ダメージ・ドロー1・相手にツボ2T",
-      "combo_note": "コスト-1（標準）",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 7,
-      "id": "b_finisher",
-      "speaker": "B君",
-      "cost": 5,
-      "text": "終わったな",
-      "tone": "passion",
-      "effect": [
-        {
-          "type": "damageIf",
-          "mode": "opponentHpLte",
-          "threshold": 10,
-          "value": 6
-        },
-        { "type": "damage", "value": 3 }
-      ],
-      "effect_note": "相手HP10以下で6ダメ＋相手3ダメージ",
-      "combo_note": "コスト-1（標準）",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 8,
-      "id": "b_chain",
-      "speaker": "B君",
-      "cost": 2,
-      "text": "マ？マジで？",
-      "tone": "chaos",
-      "effect": [{ "type": "damage", "value": 3 }],
-      "speaker_effect": { "cost_reduction": 2 },
-      "effect_note": "相手3ダメージ",
-      "combo_note": "コスト-2",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 9,
-      "id": "c_shiran",
-      "speaker": "C君",
-      "cost": 0,
-      "text": "知らんがな",
-      "tone": "logical",
-      "effect": [{ "type": "damage", "value": 1 }],
-      "effect_note": "相手1ダメージ",
-      "combo_note": "コスト-1（標準）",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 10,
-      "id": "c_warota",
-      "speaker": "C君",
-      "cost": 1,
-      "text": "ワロタ",
-      "tone": "chaos",
-      "effect": [
-        { "type": "heal", "value": 2 },
-        { "type": "statusOpponent", "status": "hiyori", "turns": 2 }
-      ],
-      "effect_note": "自身回復2・相手に日和2T",
-      "combo_note": "コスト-1（標準）",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 11,
-      "id": "c_souiu",
-      "speaker": "C君",
-      "cost": 2,
-      "text": "そういうこと言うな",
-      "tone": "logical",
-      "effect": [{ "type": "damage", "value": 3 }],
-      "effect_note": "相手3ダメージ",
-      "combo_note": "コスト-1（標準）",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 12,
-      "id": "common_ikiri",
-      "speaker": "部長",
-      "cost": 1,
-      "text": "空気読め",
-      "tone": "logical",
-      "effect": [{ "type": "damage", "value": 2 }],
-      "effect_note": "相手2ダメージ",
-      "combo_note": "コスト-1（標準）",
-      "implemented": true,
-      "bug_free": false,
-      "excluded": false
-    },
-    {
-      "order": 13,
       "id": "void_zako_nanyo",
       "speaker": "ボイド",
       "cost": 3,
@@ -229,7 +39,7 @@
       "excluded": false
     },
     {
-      "order": 14,
+      "order": 2,
       "id": "umi_chrono_shift",
       "speaker": "うみ",
       "cost": 5,
@@ -250,7 +60,7 @@
       "excluded": false
     },
     {
-      "order": 15,
+      "order": 3,
       "id": "iru_irururu",
       "speaker": "いる",
       "cost": 1,
@@ -273,7 +83,7 @@
       "excluded": false
     },
     {
-      "order": 16,
+      "order": 4,
       "id": "barley_nai_sou",
       "speaker": "ばーれぃ",
       "cost": 2,
@@ -306,7 +116,7 @@
       "excluded": false
     },
     {
-      "order": 17,
+      "order": 5,
       "id": "makimaki_yoshi_ochimasu",
       "speaker": "巻巻",
       "cost": 4,
@@ -327,7 +137,7 @@
       "excluded": false
     },
     {
-      "order": 18,
+      "order": 6,
       "id": "sato_naruhodone",
       "speaker": "さと",
       "cost": 2,
@@ -363,7 +173,7 @@
       "excluded": false
     },
     {
-      "order": 19,
+      "order": 7,
       "id": "bro_aftabia",
       "speaker": "Bro",
       "cost": 6,
@@ -388,7 +198,7 @@
       "excluded": false
     },
     {
-      "order": 20,
+      "order": 8,
       "id": "makimaki_gomente",
       "speaker": "巻巻",
       "cost": 1,
@@ -420,7 +230,7 @@
       "excluded": false
     },
     {
-      "order": 21,
+      "order": 9,
       "id": "iru_bachigai",
       "speaker": "いる",
       "cost": 3,
@@ -452,6 +262,461 @@
       },
       "effect_note": "相手直前いるで6ダメ／それ以外は自身3ダメ＋相手ツボ2T",
       "combo_note": "自身ダメ無効",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 10,
+      "id": "iru_uso_korosu",
+      "speaker": "いる",
+      "cost": 4,
+      "text": "ウソばっかりこいてると殺すホ～？",
+      "tone": "chaos",
+      "effect": [
+        {
+          "type": "damageIf",
+          "mode": "opponentLastToneIs",
+          "tone": "chaos",
+          "value": 6
+        },
+        {
+          "type": "damageIf",
+          "mode": "opponentLastToneIsNot",
+          "tone": "chaos",
+          "value": 3
+        },
+        {
+          "type": "statusSelfIf",
+          "mode": "opponentLastToneIsNot",
+          "tone": "chaos",
+          "status": "tsubo",
+          "turns": 1
+        }
+      ],
+      "speaker_effect": {
+        "effects": [
+          { "type": "statusOpponent", "status": "mute", "turns": 1 },
+          { "type": "draw", "value": 1 }
+        ]
+      },
+      "effect_note": "相手直前泥沼で6ダメ／それ以外は相手3ダメ＋自身ツボ1T",
+      "combo_note": "相手ミュート＋ドロー1",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 11,
+      "id": "hiro_shineya_kasuga",
+      "speaker": "ヒロ",
+      "cost": 5,
+      "text": "死ねや春日",
+      "tone": "chaos",
+      "effect": [
+        { "type": "damage", "value": 5 },
+        {
+          "type": "statusOpponentIf",
+          "mode": "opponentHpLte",
+          "threshold": 10,
+          "status": "hiyori",
+          "turns": 2
+        }
+      ],
+      "speaker_effect": { "damage_multiplier": 2 },
+      "effect_note": "相手5ダメ・相手HP10以下で日和2T",
+      "combo_note": "ダメ×2",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 12,
+      "id": "barley_korosu",
+      "speaker": "ばーれぃ",
+      "cost": 2,
+      "text": "ころす",
+      "tone": "logical",
+      "effect": [
+        { "type": "damage", "value": 3 },
+        {
+          "type": "damageIf",
+          "mode": "opponentHandLte",
+          "threshold": 3,
+          "value": 2
+        }
+      ],
+      "speaker_effect": {
+        "cost_reduction": 2,
+        "effects": [{ "type": "discardSelf", "value": 1 }]
+      },
+      "effect_note": "相手3ダメ・相手手札3以下で追加2ダメ",
+      "combo_note": "コスト0・手札捨1",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 13,
+      "id": "uta_hatsugen_sekinin",
+      "speaker": "うた",
+      "cost": 3,
+      "text": "私は責任に発言を持ってるから",
+      "tone": "logical",
+      "effect": [
+        {
+          "type": "drawIf",
+          "mode": "opponentHandGte",
+          "threshold": 5,
+          "value": 2
+        },
+        {
+          "type": "healIf",
+          "mode": "opponentHandGte",
+          "threshold": 5,
+          "value": 3
+        },
+        {
+          "type": "damageIf",
+          "mode": "opponentHandLte",
+          "threshold": 4,
+          "value": 3
+        }
+      ],
+      "speaker_effect": {
+        "effects": [
+          {
+            "type": "toneBanOpponent",
+            "tones": ["passion", "chaos"]
+          }
+        ]
+      },
+      "effect_note": "相手手札5以上でドロー2＋回復3／4以下で3ダメ",
+      "combo_note": "相手次T熱量・泥沼封じ",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 14,
+      "id": "iru_cult_dance",
+      "speaker": "いる",
+      "cost": 3,
+      "text": "小学生がカルトダンスしてた",
+      "tone": "chaos",
+      "effect": [
+        { "type": "damage", "value": 2 },
+        { "type": "statusOpponent", "status": "tsubo", "turns": 2 },
+        { "type": "discardSelf", "value": 1 }
+      ],
+      "speaker_effect": {
+        "effects": [{ "type": "draw", "value": 2 }],
+        "post_effects": [
+          { "type": "statusOpponentAdd", "status": "tsubo", "turns": 2 }
+        ]
+      },
+      "effect_note": "相手2ダメ＋ツボ2T＋手札捨1",
+      "combo_note": "先にドロー2・ツボ+2T(計4T)",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 15,
+      "id": "barley_fubyodo",
+      "speaker": "ばーれぃ",
+      "cost": 4,
+      "text": "この世は不平等に出来てます",
+      "tone": "chaos",
+      "effect": [
+        { "type": "damageFromHpDiff", "max": 6 },
+        {
+          "type": "damageIf",
+          "mode": "selfHpGteOpponentHp",
+          "value": 2
+        }
+      ],
+      "speaker_effect": {
+        "effects": [
+          { "type": "statusOpponent", "status": "hiyori", "turns": 2 }
+        ]
+      },
+      "effect_note": "相手HP>自身で差半分ダメ(最大6)／それ以外2ダメ",
+      "combo_note": "相手和日2T",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 16,
+      "id": "hiro_atama_mukete",
+      "speaker": "ヒロ",
+      "cost": 1,
+      "text": "頭向けて寝れねえもん",
+      "tone": "chaos",
+      "effect": [
+        { "type": "heal", "value": 3 },
+        {
+          "type": "drawIf",
+          "mode": "opponentHpGte",
+          "threshold": 15,
+          "value": 1
+        }
+      ],
+      "speaker_effect": {
+        "cost_reduction": 1,
+        "effects": [{ "type": "statusOpponent", "status": "mute", "turns": 1 }]
+      },
+      "effect_note": "回復3・相手HP15以上でドロー1",
+      "combo_note": "コスト0・相手ミュート",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 17,
+      "id": "blue_350zoku",
+      "speaker": "ブルーサンダー",
+      "cost": 2,
+      "text": "350族か",
+      "tone": "logical",
+      "effect": [
+        {
+          "type": "damageIf",
+          "mode": "opponentHandGtSelfHand",
+          "value": 4
+        },
+        {
+          "type": "damageIf",
+          "mode": "opponentHandLteSelfHand",
+          "value": 2
+        }
+      ],
+      "speaker_effect": {
+        "effects": [
+          { "type": "statusOpponent", "status": "tsubo", "turns": 1 },
+          { "type": "statusOpponent", "status": "hiyori", "turns": 1 }
+        ]
+      },
+      "effect_note": "相手手札>自身で4ダメ／それ以外2ダメ",
+      "combo_note": "相手ツボ1T＋日和1T",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 18,
+      "id": "barley_islam_tonjiru",
+      "speaker": "ばーれぃ",
+      "cost": 3,
+      "text": "イスラム教をプラス50円で豚汁に変更可能",
+      "tone": "logical",
+      "effect": [
+        { "type": "damage", "value": 3 },
+        { "type": "heal", "value": 2 },
+        { "type": "discardSelf", "value": 1 }
+      ],
+      "speaker_effect": {
+        "negate_self_discard": true,
+        "effects": [{ "type": "draw", "value": 2 }]
+      },
+      "effect_note": "相手3ダメ＋回復2＋手札捨1",
+      "combo_note": "手札捨無効・ドロー2",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 19,
+      "id": "sato_torikizoku",
+      "speaker": "さと",
+      "cost": 5,
+      "text": "そうかここ鳥貴族か！！",
+      "tone": "passion",
+      "effect": [
+        { "type": "damage", "value": 5 },
+        {
+          "type": "damageIf",
+          "mode": "opponentHandGte",
+          "threshold": 4,
+          "value": 2
+        }
+      ],
+      "speaker_effect": {
+        "cost_reduction": 2,
+        "effects": [
+          { "type": "statusOpponent", "status": "tsubo", "turns": 2 }
+        ]
+      },
+      "effect_note": "相手5ダメ・相手手札4以上で追加2ダメ",
+      "combo_note": "コスト-2・相手ツボ2T",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 20,
+      "id": "iru_ireba_yuzuritai",
+      "speaker": "いる",
+      "cost": 2,
+      "text": "入れ歯全力で譲りたい所存",
+      "tone": "logical",
+      "effect": [
+        { "type": "discardSelf", "value": 1 },
+        { "type": "damage", "value": 4 }
+      ],
+      "speaker_effect": {
+        "post_effects": [
+          {
+            "type": "statusOpponentIf",
+            "mode": "lastDiscardedToneIs",
+            "tone": "chaos",
+            "status": "hiyori",
+            "turns": 2
+          }
+        ]
+      },
+      "effect_note": "手札捨1＋相手4ダメ",
+      "combo_note": "捨て泥沼なら相手和日2T",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 21,
+      "id": "sato_tabereru_glass",
+      "speaker": "さと",
+      "cost": 2,
+      "text": "そのグラスは食べれるグラスじゃないよ",
+      "tone": "chaos",
+      "effect": [
+        { "type": "damage", "value": 2 },
+        {
+          "type": "statusOpponentIf",
+          "mode": "selfLastToneIs",
+          "tone": "passion",
+          "status": "tsubo",
+          "turns": 2
+        }
+      ],
+      "speaker_effect": {
+        "effects": [{ "type": "heal", "value": 4 }]
+      },
+      "effect_note": "相手2ダメ・直前熱量で相手ツボ2T",
+      "combo_note": "回復4",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 22,
+      "id": "void_dokutiepe",
+      "speaker": "ボイド",
+      "cost": 1,
+      "text": "どくてぃえーぺ",
+      "tone": "chaos",
+      "effect": [
+        { "type": "draw", "value": 1 },
+        {
+          "type": "damageIf",
+          "mode": "opponentHpLte",
+          "threshold": 12,
+          "value": 2
+        }
+      ],
+      "speaker_effect": {
+        "cost_reduction": 1,
+        "effects": [{ "type": "statusOpponent", "status": "mute", "turns": 1 }]
+      },
+      "effect_note": "ドロー1・相手HP12以下で2ダメ",
+      "combo_note": "コスト0・相手ミュート",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 23,
+      "id": "iru_seiheki_bosyu",
+      "speaker": "いる",
+      "cost": 3,
+      "text": "あなたの性癖大募集",
+      "tone": "passion",
+      "effect": [
+        { "type": "damage", "value": 3 },
+        {
+          "type": "damageFromOpponentHandIf",
+          "mode": "opponentLastSpeakerIsNot",
+          "speaker": "いる",
+          "max": 4
+        }
+      ],
+      "speaker_effect": {
+        "effects": [
+          { "type": "statusOpponent", "status": "tsubo", "turns": 2 }
+        ]
+      },
+      "effect_note": "相手3ダメ・相手直前いる以外で手札数ダメ(最大4)",
+      "combo_note": "相手ツボ2T",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 24,
+      "id": "barley_shi_no_nimoji",
+      "speaker": "ばーれぃ",
+      "cost": 6,
+      "text": "死の2文字",
+      "tone": "chaos",
+      "effect": [
+        {
+          "type": "damageIf",
+          "mode": "opponentHpLte",
+          "threshold": 10,
+          "value": 8
+        },
+        {
+          "type": "damageIf",
+          "mode": "opponentHpGte",
+          "threshold": 11,
+          "value": 3
+        },
+        {
+          "type": "damageSelfIf",
+          "mode": "opponentHpGte",
+          "threshold": 11,
+          "value": 4
+        }
+      ],
+      "speaker_effect": {
+        "negate_self_damage": true,
+        "effects": [
+          { "type": "statusOpponent", "status": "hiyori", "turns": 3 }
+        ]
+      },
+      "effect_note": "相手HP10以下で8ダメ／11以上で相手3ダメ＋自身4ダメ",
+      "combo_note": "自身ダメ無効・相手和日3T",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 25,
+      "id": "iru_ningen_shirishiri",
+      "speaker": "いる",
+      "cost": 2,
+      "text": "にんげんしりしり",
+      "tone": "habit",
+      "effect": [
+        { "type": "damage", "value": 2 },
+        { "type": "draw", "value": 1 }
+      ],
+      "speaker_effect": {
+        "cost_reduction": 2,
+        "set_next_speaker_damage_buff": { "speaker": "いる", "bonus": 2 }
+      },
+      "effect_note": "相手2ダメ＋ドロー1",
+      "combo_note": "コスト0・次いる+2ダメ",
       "implemented": true,
       "bug_free": false,
       "excluded": false

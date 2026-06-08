@@ -55570,7 +55570,7 @@ function shuffle(array) {
   }
   return a;
 }
-var MAX_HP = 20;
+var MAX_HP = 40;
 var DECK_SIZE = 40;
 var MAX_COPIES_PER_CARD = 4;
 var INITIAL_DRAW = 5;
@@ -55626,7 +55626,9 @@ function createEmptyStatuses() {
     tsubo: 0,
     hiyori: 0,
     pendingMute: false,
-    mutedThisTurn: false
+    mutedThisTurn: false,
+    pendingToneBan: [],
+    bannedTonesThisTurn: []
   };
 }
 function createPlayerState(deckIds) {
@@ -55643,6 +55645,7 @@ function createPlayerState(deckIds) {
     lastPlayedTone: null,
     lastPlayedCardId: null,
     lastPlayDiscardCount: 0,
+    nextSpeakerDamageBuff: null,
     statuses: createEmptyStatuses()
   };
 }
@@ -55669,7 +55672,7 @@ function drawCardsStrict(p, n2) {
   }
   return { ok: true, drawn };
 }
-function discardRandomFromHand(p, n2) {
+function discardRandomFromHand(p, n2, ctx, cardById) {
   const take = Math.min(n2 | 0, p.hand.length);
   if (take <= 0) return 0;
   const idxs = p.hand.map((_, i) => i);
@@ -55678,6 +55681,10 @@ function discardRandomFromHand(p, n2) {
   for (const ix of toRemove) {
     const id = p.hand.splice(ix, 1)[0];
     p.discard.push(id);
+    if (ctx && cardById?.[id]?.tone) {
+      if (!ctx.lastDiscardedTones) ctx.lastDiscardedTones = [];
+      ctx.lastDiscardedTones.push(cardById[id].tone);
+    }
   }
   return take;
 }
@@ -55692,7 +55699,7 @@ function discardAllFromHand(p) {
 function recordDiscard(ctx, n2) {
   if (ctx && n2 > 0) ctx.discardCountThisPlay = (ctx.discardCountThisPlay | 0) + n2;
 }
-function evalCondition(game, actorIndex, cond) {
+function evalCondition(game, actorIndex, cond, ctx) {
   const self2 = game.players[actorIndex];
   const opp = game.players[1 - actorIndex];
   switch (cond.mode) {
@@ -55722,6 +55729,18 @@ function evalCondition(game, actorIndex, cond) {
       return opp.lastPlayedTone != null && opp.lastPlayedTone === cond.tone;
     case "opponentLastToneIsNot":
       return opp.lastPlayedTone == null || opp.lastPlayedTone !== cond.tone;
+    case "selfLastToneIs":
+      return self2.lastPlayedTone != null && self2.lastPlayedTone === cond.tone;
+    case "opponentHpGtSelfHp":
+      return opp.hp > self2.hp;
+    case "selfHpGteOpponentHp":
+      return self2.hp >= opp.hp;
+    case "opponentHandGtSelfHand":
+      return opp.hand.length > self2.hand.length;
+    case "opponentHandLteSelfHand":
+      return opp.hand.length <= self2.hand.length;
+    case "lastDiscardedToneIs":
+      return (ctx?.lastDiscardedTones || []).includes(cond.tone);
     default:
       return false;
   }
@@ -55752,7 +55771,7 @@ function damageMultiplier(cardDef, speakerCombo, game, actorIndex) {
   if (!se) return 1;
   if (se.damage_multiplier_if) {
     const cond = se.damage_multiplier_if;
-    if (evalCondition(game, actorIndex, cond)) {
+    if (evalCondition(game, actorIndex, cond, null)) {
       return Math.max(1, cond.multiplier | 0);
     }
     return 1;
@@ -55760,22 +55779,29 @@ function damageMultiplier(cardDef, speakerCombo, game, actorIndex) {
   if (se.damage_multiplier == null) return 1;
   return Math.max(1, se.damage_multiplier | 0);
 }
-function scaledDamage(value, mult) {
-  return Math.max(0, (value | 0) * mult);
+function scaledDamage(value, mult, flatBonus) {
+  return Math.max(0, ((value | 0) + (flatBonus | 0)) * mult);
+}
+function calcHpDiffDamage(self2, opp, maxCap) {
+  if (opp.hp <= self2.hp) return 0;
+  const diff = Math.floor((opp.hp - self2.hp) / 2);
+  const cap = maxCap == null ? diff : maxCap | 0;
+  return Math.min(diff, cap);
 }
 function checkWinner(game) {
   if (game.players[0].hp <= 0) return 1;
   if (game.players[1].hp <= 0) return 0;
   return null;
 }
-function applyStatus(target, status, turns) {
+function applyStatus(target, status, turns, addTurns) {
   const st = playerStatuses(target);
+  const t2 = Math.max(1, turns | 0);
   switch (status) {
     case STATUS.TSUBO:
-      st.tsubo = Math.max(st.tsubo | 0, Math.max(1, turns | 0));
+      st.tsubo = addTurns ? (st.tsubo | 0) + t2 : Math.max(st.tsubo | 0, t2);
       break;
     case STATUS.HIYORI:
-      st.hiyori = Math.max(st.hiyori | 0, Math.max(1, turns | 0));
+      st.hiyori = addTurns ? (st.hiyori | 0) + t2 : Math.max(st.hiyori | 0, t2);
       break;
     case STATUS.MUTE:
       st.pendingMute = true;
@@ -55790,12 +55816,19 @@ function onTurnStartStatuses(p) {
     st.mutedThisTurn = true;
     st.pendingMute = false;
   }
+  if (st.pendingToneBan?.length) {
+    st.bannedTonesThisTurn = st.pendingToneBan.slice();
+    st.pendingToneBan = [];
+  } else {
+    st.bannedTonesThisTurn = [];
+  }
 }
 function onTurnEndStatuses(p) {
   const st = playerStatuses(p);
   if (st.tsubo > 0) st.tsubo -= 1;
   if (st.hiyori > 0) st.hiyori -= 1;
   st.mutedThisTurn = false;
+  st.bannedTonesThisTurn = [];
 }
 function publicStatuses(p) {
   const st = playerStatuses(p);
@@ -55803,7 +55836,8 @@ function publicStatuses(p) {
     tsubo: st.tsubo | 0,
     hiyori: st.hiyori | 0,
     mutedThisTurn: !!st.mutedThisTurn,
-    pendingMute: !!st.pendingMute
+    pendingMute: !!st.pendingMute,
+    bannedTonesThisTurn: (st.bannedTonesThisTurn || []).slice()
   };
 }
 function describeIfClause(e2) {
@@ -55831,6 +55865,18 @@ function describeIfClause(e2) {
       return `\u76F8\u624B\u76F4\u524D\u304C\u3010${TONE_LABEL[e2.tone] || e2.tone || "?"}\u3011`;
     case "opponentLastToneIsNot":
       return `\u76F8\u624B\u76F4\u524D\u304C\u3010${TONE_LABEL[e2.tone] || e2.tone || "?"}\u3011\u4EE5\u5916`;
+    case "selfLastToneIs":
+      return `\u76F4\u524D\u304C\u3010${TONE_LABEL[e2.tone] || e2.tone || "?"}\u3011`;
+    case "opponentHpGtSelfHp":
+      return "\u76F8\u624BHP>\u81EA\u8EABHP";
+    case "selfHpGteOpponentHp":
+      return "\u81EA\u8EABHP\u2267\u76F8\u624BHP";
+    case "opponentHandGtSelfHand":
+      return "\u76F8\u624B\u624B\u672D>\u81EA\u8EAB\u624B\u672D";
+    case "opponentHandLteSelfHand":
+      return "\u76F8\u624B\u624B\u672D\u2266\u81EA\u8EAB\u624B\u672D";
+    case "lastDiscardedToneIs":
+      return `\u6368\u3066\u305F\u3010${TONE_LABEL[e2.tone] || e2.tone || "?"}\u3011`;
     default:
       return "\uFF1F";
   }
@@ -55862,6 +55908,16 @@ function describeEffectLine(e2) {
       return `${describeIfClause(e2)}\u3067\u76F8\u624B\u306B${STATUS_LABEL[e2.status] || e2.status}${e2.turns | 0}T`;
     case "damageFromPrevDiscard":
       return `\u76F4\u524D\u300C${e2.prevCardId || "?"}\u300D\u306E\u6368\u3066\u679A\u6570\u30C0\u30E1`;
+    case "damageFromHpDiff":
+      return `HP\u5DEE\u534A\u5206\u30C0\u30E1${e2.max != null ? `(\u6700\u5927${e2.max | 0})` : ""}`;
+    case "damageFromOpponentHandIf":
+      return `${describeIfClause(e2)}\u3067\u76F8\u624B\u624B\u672D\u6570\u30C0\u30E1${e2.max != null ? `(\u6700\u5927${e2.max | 0})` : ""}`;
+    case "statusSelfIf":
+      return `${describeIfClause(e2)}\u3067\u81EA\u8EAB\u306B${STATUS_LABEL[e2.status] || e2.status}${e2.turns | 0}T`;
+    case "statusOpponentAdd":
+      return `\u76F8\u624B\u306B${STATUS_LABEL[e2.status] || e2.status}+${e2.turns | 0}T`;
+    case "toneBanOpponent":
+      return `\u76F8\u624B\u6B21T\u5C5E\u6027\u5C01\u3058`;
     default:
       break;
   }
@@ -55879,10 +55935,12 @@ function applyEffectList(game, actorIndex, effects, ctx) {
   const self2 = game.players[actorIndex];
   const opp = game.players[opponentIndex];
   const mult = ctx?.damageMultiplier || 1;
+  const flatBonus = ctx?.damageFlatBonus || 0;
   const skipSelfDmg = !!ctx?.negateSelfDamage;
+  const cardById = ctx?.cardById;
   for (const e2 of effects || []) {
     if (e2.type === "damage") {
-      const d = scaledDamage(e2.value, mult);
+      const d = scaledDamage(e2.value, mult, flatBonus);
       opp.hp = Math.max(0, opp.hp - d);
     } else if (e2.type === "heal") {
       self2.hp = Math.min(MAX_HP, self2.hp + (e2.value | 0));
@@ -55890,43 +55948,74 @@ function applyEffectList(game, actorIndex, effects, ctx) {
       const drawn = drawCards(self2, e2.value | 0);
       self2.hand.push(...drawn);
     } else if (e2.type === "drawIf") {
-      if (evalCondition(game, actorIndex, e2)) {
+      if (evalCondition(game, actorIndex, e2, ctx)) {
         const drawn = drawCards(self2, e2.value | 0);
         self2.hand.push(...drawn);
       }
     } else if (e2.type === "discardSelf") {
-      recordDiscard(ctx, discardRandomFromHand(self2, e2.value | 0));
+      if (!ctx?.negateSelfDiscard) {
+        recordDiscard(
+          ctx,
+          discardRandomFromHand(self2, e2.value | 0, ctx, cardById)
+        );
+      }
     } else if (e2.type === "discardAllSelf") {
-      recordDiscard(ctx, discardAllFromHand(self2));
+      if (!ctx?.negateSelfDiscard) {
+        recordDiscard(ctx, discardAllFromHand(self2));
+      }
     } else if (e2.type === "damageSelf") {
       if (!skipSelfDmg) {
         self2.hp = Math.max(0, self2.hp - (e2.value | 0));
       }
     } else if (e2.type === "damageIf") {
-      if (evalCondition(game, actorIndex, e2)) {
-        const d = scaledDamage(e2.value, mult);
+      if (evalCondition(game, actorIndex, e2, ctx)) {
+        const d = scaledDamage(e2.value, mult, flatBonus);
         opp.hp = Math.max(0, opp.hp - d);
       }
     } else if (e2.type === "damageSelfIf") {
-      if (!skipSelfDmg && evalCondition(game, actorIndex, e2)) {
+      if (!skipSelfDmg && evalCondition(game, actorIndex, e2, ctx)) {
         self2.hp = Math.max(0, self2.hp - (e2.value | 0));
       }
     } else if (e2.type === "healIf") {
-      if (evalCondition(game, actorIndex, e2)) {
+      if (evalCondition(game, actorIndex, e2, ctx)) {
         self2.hp = Math.min(MAX_HP, self2.hp + (e2.value | 0));
+      }
+    } else if (e2.type === "damageFromHpDiff") {
+      const raw = calcHpDiffDamage(self2, opp, e2.max);
+      if (raw > 0) {
+        const d = scaledDamage(raw, mult, flatBonus);
+        opp.hp = Math.max(0, opp.hp - d);
+      }
+    } else if (e2.type === "damageFromOpponentHandIf") {
+      if (evalCondition(game, actorIndex, e2, ctx)) {
+        let raw = opp.hand.length;
+        if (e2.max != null) raw = Math.min(raw, e2.max | 0);
+        if (raw > 0) {
+          const d = scaledDamage(raw, mult, flatBonus);
+          opp.hp = Math.max(0, opp.hp - d);
+        }
       }
     } else if (e2.type === "statusOpponent") {
       applyStatus(opp, e2.status, e2.turns ?? 1);
+    } else if (e2.type === "statusOpponentAdd") {
+      applyStatus(opp, e2.status, e2.turns ?? 1, true);
     } else if (e2.type === "statusOpponentIf") {
-      if (evalCondition(game, actorIndex, e2)) {
+      if (evalCondition(game, actorIndex, e2, ctx)) {
         applyStatus(opp, e2.status, e2.turns ?? 1);
       }
     } else if (e2.type === "statusSelf") {
       applyStatus(self2, e2.status, e2.turns ?? 1);
+    } else if (e2.type === "statusSelfIf") {
+      if (evalCondition(game, actorIndex, e2, ctx)) {
+        applyStatus(self2, e2.status, e2.turns ?? 1);
+      }
+    } else if (e2.type === "toneBanOpponent") {
+      const ost = playerStatuses(opp);
+      ost.pendingToneBan = (e2.tones || []).slice();
     } else if (e2.type === "damageFromPrevDiscard") {
       const prevId = e2.prevCardId;
       if (prevId && ctx?.prevCardId === prevId && (ctx.prevDiscardCount | 0) > 0) {
-        const d = scaledDamage(ctx.prevDiscardCount, mult);
+        const d = scaledDamage(ctx.prevDiscardCount, mult, flatBonus);
         opp.hp = Math.max(0, opp.hp - d);
       }
     }
@@ -55970,6 +56059,7 @@ function startTurn(game, playerIndex) {
   p.costPool = p.maxCost;
   p.lastPlayedSpeaker = null;
   p.lastPlayedTone = null;
+  p.nextSpeakerDamageBuff = null;
   const drawRes = drawCardsStrict(p, DRAW_PER_TURN);
   if (!drawRes.ok) {
     const winner = 1 - playerIndex;
@@ -55991,17 +56081,33 @@ function startTurn(game, playerIndex) {
   if (st.mutedThisTurn) statusBits.push("\u30DF\u30E5\u30FC\u30C8");
   if (st.tsubo > 0) statusBits.push(`\u30C4\u30DC${st.tsubo}T`);
   if (st.hiyori > 0) statusBits.push(`\u65E5\u548C${st.hiyori}T`);
+  if (st.bannedTonesThisTurn?.length) {
+    statusBits.push(
+      `\u5C01\u3058:${st.bannedTonesThisTurn.map(toneBanLabel).join("\u30FB")}`
+    );
+  }
   const who = playerIndex === game.firstPlayer ? "\u5148\u653B" : "\u5F8C\u653B";
   let logText = `\u30BF\u30FC\u30F3${game.turnNumber} \u2014 ${who}\u306E\u624B\u756A\uFF08\u7A7A\u6C17 ${p.costPool}/${p.maxCost}\uFF09`;
   if (statusBits.length) logText += ` [${statusBits.join("\u30FB")}]`;
   pushLog(game, playerIndex, logText, null, "system");
   return { ok: true };
 }
+function toneBanLabel(tone) {
+  return TONE_LABEL[tone] || tone;
+}
 function canPlayCard(game, playerIndex, cardDef) {
   const p = game.players[playerIndex];
   const st = playerStatuses(p);
   if ((st.hiyori | 0) > 0 && cardHasTone(cardDef, TONE.PASSION)) {
     return { ok: false, reason: "\u65E5\u548C\u72B6\u614B\u306E\u305F\u3081\u3010\u71B1\u91CF\u3011\u30AB\u30FC\u30C9\u306F\u30D7\u30EC\u30A4\u3067\u304D\u307E\u305B\u3093\u3002" };
+  }
+  const tone = cardTone(cardDef);
+  if (tone && (st.bannedTonesThisTurn || []).includes(tone)) {
+    const labels = (st.bannedTonesThisTurn || []).map(toneBanLabel).join("\u30FB");
+    return {
+      ok: false,
+      reason: `\u5C5E\u6027\u5C01\u3058\u306E\u305F\u3081\u3010${toneBanLabel(tone)}\u3011\u30AB\u30FC\u30C9\u306F\u30D7\u30EC\u30A4\u3067\u304D\u307E\u305B\u3093\u3002\uFF08\u5C01\u3058: ${labels}\uFF09`
+    };
   }
   return { ok: true };
 }
@@ -56031,21 +56137,34 @@ function playCard(game, playerIndex, handIndex, cardById) {
   p.costPool -= payCost;
   p.hand.splice(handIndex, 1);
   p.discard.push(cardId);
+  let damageFlatBonus = 0;
+  if (p.nextSpeakerDamageBuff?.speaker && def.speaker === p.nextSpeakerDamageBuff.speaker) {
+    damageFlatBonus = p.nextSpeakerDamageBuff.bonus | 0;
+    p.nextSpeakerDamageBuff = null;
+  }
+  const se = def.speaker_effect;
   const ctx = {
     damageMultiplier: damageMultiplier(def, speakerCombo, game, playerIndex),
     speakerCombo,
-    negateSelfDamage: speakerCombo && !!def.speaker_effect?.negate_self_damage,
+    damageFlatBonus,
+    cardById,
+    negateSelfDamage: speakerCombo && !!se?.negate_self_damage,
+    negateSelfDiscard: speakerCombo && !!se?.negate_self_discard,
     prevCardId: p.lastPlayedCardId,
     prevDiscardCount: p.lastPlayDiscardCount | 0,
-    discardCountThisPlay: 0
+    discardCountThisPlay: 0,
+    lastDiscardedTones: []
   };
-  if (speakerCombo) {
-    const se = def.speaker_effect;
-    if (se?.effects?.length) {
-      applyEffectList(game, playerIndex, se.effects, ctx);
-    }
+  if (speakerCombo && se?.effects?.length) {
+    applyEffectList(game, playerIndex, se.effects, ctx);
   }
   applyEffectList(game, playerIndex, cardEffects(def), ctx);
+  if (speakerCombo && se?.post_effects?.length) {
+    applyEffectList(game, playerIndex, se.post_effects, ctx);
+  }
+  if (speakerCombo && se?.set_next_speaker_damage_buff) {
+    p.nextSpeakerDamageBuff = { ...se.set_next_speaker_damage_buff };
+  }
   const prevSpeaker = p.lastPlayedSpeaker;
   p.lastPlayedSpeaker = def.speaker || null;
   p.lastPlayedTone = def.tone || null;

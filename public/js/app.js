@@ -94,7 +94,91 @@ const EFFECT_HELP = {
   combo: "直前にプレイしたカードと同じ発言者なら、コスト軽減などの追加効果。",
   damage_multiplier: "発言者コンボ成立時、ダメージが倍になる。",
   cost_reduction: "発言者コンボ成立時、コストが下がる。",
+  negate_self_damage: "発言者コンボ成立時、このカードの自身へのダメージを無効化。",
+  negate_self_discard: "発言者コンボ成立時、このカードの手札捨てを無効化。",
+  next_speaker_damage_buff:
+    "発言者コンボ成立時、次に使う同発言者カードのダメージが増加。",
 };
+
+function speakerComboCostReduction(card) {
+  const se = card.speaker_effect;
+  if (se && se.cost_reduction != null) return se.cost_reduction | 0;
+  return 1;
+}
+
+function speakerComboCostLabel(card) {
+  const base = card.cost | 0;
+  const reduction = speakerComboCostReduction(card);
+  const effective = Math.max(0, base - reduction);
+  if (effective === 0) return "コスト0";
+  if (reduction === 1) return "コスト-1";
+  return `コスト-${reduction}`;
+}
+
+function appendComboHint(container, card, duelCtx) {
+  if (!card.speaker) return;
+  const se = card.speaker_effect || {};
+  const combo = document.createElement("div");
+  combo.className = "card-combo-hint";
+  appendHintSpan(combo, "コンボ", EFFECT_HELP.combo, null);
+
+  let hasToken = false;
+  const addToken = (text, tooltip) => {
+    if (hasToken) {
+      const sep = document.createElement("span");
+      sep.className = "card-effect-sep";
+      sep.textContent = " ";
+      combo.appendChild(sep);
+    }
+    appendHintSpan(combo, text, tooltip || null, null);
+    hasToken = true;
+  };
+
+  if (se.cost_reduction !== 0) {
+    addToken(speakerComboCostLabel(card), EFFECT_HELP.cost_reduction);
+  }
+  if (se.damage_multiplier > 1) {
+    addToken(`ダメ×${se.damage_multiplier}`, EFFECT_HELP.damage_multiplier);
+  }
+  if (se.damage_multiplier_if) {
+    const cond = se.damage_multiplier_if;
+    const met =
+      duelCtx?.state &&
+      evalIfEffectForActor(cond, duelCtx.state, duelCtx.actorSlot);
+    const suffix = met === true ? " ✓" : met === false ? " ×" : "";
+    addToken(
+      `${describeIfClause(cond)}→ダメ×${cond.multiplier}${suffix}`,
+      EFFECT_HELP.damage_multiplier
+    );
+  }
+  if (se.negate_self_damage) {
+    addToken("自身ダメ無効", EFFECT_HELP.negate_self_damage);
+  }
+  if (se.negate_self_discard) {
+    addToken("手札捨無効", EFFECT_HELP.negate_self_discard);
+  }
+  if (se.set_next_speaker_damage_buff) {
+    const b = se.set_next_speaker_damage_buff;
+    addToken(
+      `次「${b.speaker || "?"}」+${b.bonus | 0}ダメ`,
+      EFFECT_HELP.next_speaker_damage_buff
+    );
+  }
+  if (se.effects?.length) {
+    se.effects.forEach((e) => {
+      const tok = formatEffectToken(e, duelCtx);
+      addToken(tok.text, tok.tooltip);
+    });
+  }
+  if (se.post_effects?.length) {
+    se.post_effects.forEach((e) => {
+      const tok = formatEffectToken(e, duelCtx);
+      addToken(tok.text, tok.tooltip);
+    });
+  }
+
+  container.appendChild(combo);
+}
 
 function cardEffectList(card) {
   return card?.effect || card?.effects || [];
@@ -142,6 +226,18 @@ function describeIfClause(e) {
       return `相手直前【${TONE_LABEL[e.tone] || e.tone || "?"}】`;
     case "opponentLastToneIsNot":
       return `相手直前【${TONE_LABEL[e.tone] || e.tone || "?"}】以外`;
+    case "selfLastToneIs":
+      return `直前【${TONE_LABEL[e.tone] || e.tone || "?"}】`;
+    case "opponentHpGtSelfHp":
+      return "相手HP>自身HP";
+    case "selfHpGteOpponentHp":
+      return "自身HP≧相手HP";
+    case "opponentHandGtSelfHand":
+      return "相手手札>自身手札";
+    case "opponentHandLteSelfHand":
+      return "相手手札≦自身手札";
+    case "lastDiscardedToneIs":
+      return `捨て【${TONE_LABEL[e.tone] || e.tone || "?"}】`;
     default:
       return "？";
   }
@@ -204,6 +300,54 @@ function formatEffectToken(e, duelCtx) {
     }
     case "damageFromPrevDiscard":
       return { text: "直前捨枚数ダメ", tooltip: null };
+    case "damageFromHpDiff":
+      return {
+        text: `HP差半分ダメ${e.max != null ? `(最大${e.max | 0})` : ""}`,
+        tooltip: null,
+      };
+    case "damageFromOpponentHandIf": {
+      const met =
+        duelCtx?.state &&
+        evalIfEffectForActor(e, duelCtx.state, duelCtx.actorSlot);
+      const suffix =
+        met === true ? " ✓" : met === false ? " ×" : "";
+      return {
+        text: `${describeIfClause(e)}→手札数ダメ${e.max != null ? `(最大${e.max | 0})` : ""}${suffix}`,
+        tooltip: null,
+        met,
+      };
+    }
+    case "statusSelfIf": {
+      const met =
+        duelCtx?.state &&
+        evalIfEffectForActor(e, duelCtx.state, duelCtx.actorSlot);
+      const st = e.status;
+      const turns = e.turns | 0;
+      const label = STATUS_LABEL[st] || st;
+      const suffix =
+        met === true ? " ✓" : met === false ? " ×" : "";
+      return {
+        text: `${describeIfClause(e)}→自身${label}${turns}T${suffix}`,
+        tooltip: STATUS_HELP[st] || null,
+        met,
+      };
+    }
+    case "statusOpponentAdd": {
+      const st = e.status;
+      const turns = e.turns | 0;
+      const label = STATUS_LABEL[st] || st;
+      return {
+        text: `相手${label}+${turns}T`,
+        tooltip: STATUS_HELP[st] || null,
+      };
+    }
+    case "toneBanOpponent": {
+      const labels = (e.tones || []).map((t) => TONE_LABEL[t] || t).join("・");
+      return {
+        text: `相手次T【${labels}】封じ`,
+        tooltip: "次の相手ターン、指定属性のカードが使えない。",
+      };
+    }
     case "damageIf": {
       const met =
         duelCtx?.state &&
@@ -425,6 +569,21 @@ function evalIfEffectForActor(effect, state, actorSlot) {
           : state.opponent.lastPlayedTone;
       return oppTone == null || oppTone !== effect.tone;
     }
+    case "selfLastToneIs": {
+      const selfTone =
+        actorSlot === state.youAre
+          ? state.you.lastPlayedTone
+          : state.opponent.lastPlayedTone;
+      return selfTone != null && selfTone === effect.tone;
+    }
+    case "opponentHpGtSelfHp":
+      return oppHp > selfHp;
+    case "selfHpGteOpponentHp":
+      return selfHp >= oppHp;
+    case "opponentHandGtSelfHand":
+      return oppHand > selfHand;
+    case "opponentHandLteSelfHand":
+      return oppHand <= selfHand;
     default:
       return false;
   }
@@ -555,48 +714,7 @@ function renderCardBody(container, card, duelCtx) {
   appendToneRow(container, card);
 
   appendEffectTokens(container, cardEffectList(card), duelCtx);
-
-  if (card.speaker_effect) {
-    const combo = document.createElement("div");
-    combo.className = "card-combo-hint";
-    appendHintSpan(combo, "コンボ", EFFECT_HELP.combo, null);
-    const se = card.speaker_effect;
-    if (se.damage_multiplier > 1) {
-      const sep = document.createElement("span");
-      sep.className = "card-effect-sep";
-      sep.textContent = " ";
-      combo.appendChild(sep);
-      appendHintSpan(
-        combo,
-        `ダメ×${se.damage_multiplier}`,
-        EFFECT_HELP.damage_multiplier,
-        null
-      );
-    }
-    if (se.cost_reduction != null && se.cost_reduction !== 1) {
-      const sep = document.createElement("span");
-      sep.className = "card-effect-sep";
-      sep.textContent = " ";
-      combo.appendChild(sep);
-      appendHintSpan(
-        combo,
-        `コスト-${se.cost_reduction}`,
-        EFFECT_HELP.cost_reduction,
-        null
-      );
-    }
-    if (se.effects?.length) {
-      se.effects.forEach((e) => {
-        const sep = document.createElement("span");
-        sep.className = "card-effect-sep";
-        sep.textContent = " ";
-        combo.appendChild(sep);
-        const tok = formatEffectToken(e, duelCtx);
-        appendHintSpan(combo, tok.text, tok.tooltip, null);
-      });
-    }
-    container.appendChild(combo);
-  }
+  appendComboHint(container, card, duelCtx);
 }
 
 function makeCardFace(card, { wide, duelCtx } = {}) {
@@ -1150,7 +1268,7 @@ function onGameState(state) {
   }
   duelPrevSelfHp = selfHp;
   duelPrevOppHp = oppHp;
-  const maxHp = state.you.maxHp ?? state.opponent.maxHp ?? 20;
+  const maxHp = state.you.maxHp ?? state.opponent.maxHp ?? 40;
   document.querySelectorAll(".duel-hp-max").forEach((el) => {
     el.textContent = `/${maxHp}`;
   });
