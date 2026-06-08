@@ -75,7 +75,7 @@ const TONE_LABEL = {
   chaos: "泥沼",
   habit: "口癖",
 };
-const STATUS_LABEL = { tsubo: "ツボ", hiyori: "日和", mute: "ミュート" };
+const STATUS_LABEL = { kakusei: "覚醒", shuchu: "集中", gankyo: "頑強" };
 
 const TONE_HELP = {
   passion: "勢い・怒り・大爆笑。攻撃やラッシュ向き。",
@@ -85,9 +85,10 @@ const TONE_HELP = {
 };
 
 const STATUS_HELP = {
-  tsubo: "ツボ（爆笑）: 付与中、カードを使うたびにライフが1減る。",
-  hiyori: "日和: 付与中、【熱量】属性のカードが使えない。",
-  mute: "ミュート: 次の自分ターン、発言者コンボ（コスト軽減など）が発動しない。",
+  kakusei: "覚醒: 付与中、カードを使うたびに相手に1ダメージ。",
+  shuchu: "集中: 付与中、【熱量】のコスト-1・威力+1。",
+  gankyo:
+    "頑強: 付与中、発言者コンボのコスト軽減+1・ダメージ+1（倍率は+1段）。",
 };
 
 const EFFECT_HELP = {
@@ -188,16 +189,27 @@ function cardHasTone(card, tone) {
   return card?.tone === tone;
 }
 
-function effectivePlayCost(card, lastPlayedSpeaker, mutedThisTurn) {
+function toneAttributeBoost(st, card) {
+  const tone = card?.tone;
+  if (!tone) return false;
+  if ((st.shuchu | 0) > 0 && tone === "passion") return true;
+  return (st.toneBoostTones || []).includes(tone);
+}
+
+function effectivePlayCost(card, lastPlayedSpeaker, statuses = {}) {
+  const st = statuses || {};
   const base = card.cost | 0;
-  if (mutedThisTurn) return base;
   const speaker = card.speaker;
-  if (!speaker || !lastPlayedSpeaker || speaker !== lastPlayedSpeaker) {
-    return base;
+  const hasCombo =
+    !!speaker && lastPlayedSpeaker != null && speaker === lastPlayedSpeaker;
+  let reduction = 0;
+  if (hasCombo) {
+    reduction = speakerComboCostReduction(card);
+    if ((st.gankyo | 0) > 0) reduction += 1;
   }
-  const se = card.speaker_effect;
-  const reduction =
-    se && se.cost_reduction != null ? Math.max(0, se.cost_reduction | 0) : 1;
+  if (toneAttributeBoost(st, card)) {
+    reduction += 1;
+  }
   return Math.max(0, base - reduction);
 }
 
@@ -341,11 +353,27 @@ function formatEffectToken(e, duelCtx) {
         tooltip: STATUS_HELP[st] || null,
       };
     }
+    case "statusSelfAdd": {
+      const st = e.status;
+      const turns = e.turns | 0;
+      const label = STATUS_LABEL[st] || st;
+      return {
+        text: `自身${label}+${turns}T`,
+        tooltip: STATUS_HELP[st] || null,
+      };
+    }
     case "toneBanOpponent": {
       const labels = (e.tones || []).map((t) => TONE_LABEL[t] || t).join("・");
       return {
         text: `相手次T【${labels}】封じ`,
         tooltip: "次の相手ターン、指定属性のカードが使えない。",
+      };
+    }
+    case "toneBoostSelf": {
+      const labels = (e.tones || []).map((t) => TONE_LABEL[t] || t).join("・");
+      return {
+        text: `自身次T【${labels}】強化`,
+        tooltip: "次の自分ターン、指定属性のコスト-1・威力+1。",
       };
     }
     case "damageIf": {
@@ -448,6 +476,10 @@ function appendToneRow(container, card) {
   container.appendChild(row);
 }
 
+function sfx() {
+  return typeof ScgSfx !== "undefined" ? ScgSfx : null;
+}
+
 function playCardAction(handIndex, discardPicks) {
   if (!skywaySession) {
     toast("接続がありません");
@@ -462,6 +494,52 @@ function endTurnAction() {
     return;
   }
   skywaySession.endTurn();
+}
+
+const UI_HOVER_SELECTOR =
+  "button:not(:disabled), .btn:not(:disabled), [data-go], [data-back], .deck-list-row, .pile, select, .deck-strip-btn, input[type='checkbox'], label";
+
+function wireUiReactionSounds() {
+  const S = sfx();
+  if (!S) return;
+
+  const hoverMarks = new WeakSet();
+
+  document.addEventListener("mouseover", (e) => {
+    if (!(e.target instanceof Element)) return;
+    const card = e.target.closest(".card-face:not(.card-back)");
+    if (card) {
+      if (hoverMarks.has(card)) return;
+      hoverMarks.add(card);
+      S.cardHover();
+      return;
+    }
+    const ui = e.target.closest(UI_HOVER_SELECTOR);
+    if (!ui || hoverMarks.has(ui)) return;
+    hoverMarks.add(ui);
+    S.uiHover();
+  });
+
+  document.addEventListener("mouseout", (e) => {
+    if (!(e.target instanceof Element)) return;
+    const card = e.target.closest(".card-face:not(.card-back)");
+    if (card && !card.contains(e.relatedTarget)) hoverMarks.delete(card);
+    const ui = e.target.closest(UI_HOVER_SELECTOR);
+    if (ui && !ui.contains(e.relatedTarget)) hoverMarks.delete(ui);
+  });
+
+  document.addEventListener(
+    "click",
+    (e) => {
+      if (!(e.target instanceof Element)) return;
+      if (e.target.closest(".card-face")) return;
+      const btn = e.target.closest("button:not(:disabled)");
+      if (!btn) return;
+      if (btn.classList.contains("primary")) S.uiPrimary();
+      else S.uiTap();
+    },
+    true
+  );
 }
 
 function sendDeckToServer(cardIds) {
@@ -589,8 +667,7 @@ function evalIfEffectForActor(effect, state, actorSlot) {
   }
 }
 
-function speakerComboReady(card, lastPlayedSpeaker, mutedThisTurn) {
-  if (mutedThisTurn) return false;
+function speakerComboReady(card, lastPlayedSpeaker) {
   return (
     !!card?.speaker &&
     lastPlayedSpeaker != null &&
@@ -735,9 +812,12 @@ function makeCardFace(card, { wide, duelCtx } = {}) {
   const isYou = duelCtx?.actorSlot === duelCtx?.state?.youAre;
   const actor = isYou ? duelCtx?.state?.you : duelCtx?.state?.opponent;
   const lastSp = actor?.lastPlayedSpeaker;
-  const muted = !!actor?.statuses?.mutedThisTurn;
-  if (speakerComboReady(card, lastSp, muted)) {
+  const st = actor?.statuses || {};
+  if (speakerComboReady(card, lastSp)) {
     root.classList.add("card-combo-ready");
+  }
+  if (toneAttributeBoost(st, card)) {
+    root.classList.add("card-shuchu-boost");
   }
 
   const inner = document.createElement("div");
@@ -754,7 +834,7 @@ function makeCardFace(card, { wide, duelCtx } = {}) {
   cost.className = "card-cost";
   const displayCost =
     duelCtx?.state != null
-      ? effectivePlayCost(card, lastSp, muted)
+      ? effectivePlayCost(card, lastSp, st)
       : Math.min(10, Math.max(0, card.cost | 0));
   cost.textContent = String(displayCost);
   if (displayCost < (card.cost | 0)) {
@@ -1014,6 +1094,24 @@ function applyDuelZoomClass() {
     btn.textContent = lg ? "カード: 大" : "カード: 標準";
     btn.setAttribute("aria-pressed", lg ? "true" : "false");
   }
+  requestAnimationFrame(() => {
+    updateDuelLogMaxHeight();
+    requestAnimationFrame(updateDuelLogMaxHeight);
+  });
+}
+
+function updateLastPlayDisplay(speakerEl, toneEl, speaker, tone) {
+  if (speakerEl) speakerEl.textContent = speaker || "—";
+  if (!toneEl) return;
+  if (speaker && tone) {
+    toneEl.textContent = TONE_LABEL[tone] || tone;
+    toneEl.className = `card-tone card-tone--${tone}`;
+    toneEl.hidden = false;
+  } else {
+    toneEl.hidden = true;
+    toneEl.textContent = "";
+    toneEl.className = "card-tone";
+  }
 }
 
 function openCardZoomPreview(cardId, { actorSlot } = {}) {
@@ -1046,6 +1144,7 @@ function closeCardZoomPreview() {
   if (back) back.hidden = true;
   document.body.classList.remove("scg-card-zoom-open");
   document.documentElement.classList.remove("scg-card-zoom-open");
+  sfx()?.uiClose();
 }
 
 /** 交戦ダメージログを、閲覧者 youAre 視点の文言に統一する */
@@ -1171,21 +1270,125 @@ function fillStatusRail(bodyEl, rows) {
 function statusRowsFromPlayer(pl, extraRows) {
   const rows = extraRows ? extraRows.slice() : [];
   const st = pl?.statuses || {};
-  if (st.mutedThisTurn) {
-    rows.push({ kind: "mute", text: "ミュート（コンボ無効）", strong: true });
-  } else if (st.pendingMute) {
-    rows.push({ kind: "mute", text: "次ターン・ミュート予約" });
+  if ((st.kakusei | 0) > 0) {
+    rows.push({
+      kind: "kakusei",
+      text: `覚醒 あと${st.kakusei}T（使用時相手1ダメ）`,
+      strong: true,
+    });
   }
-  if ((st.tsubo | 0) > 0) {
-    rows.push({ kind: "tsubo", text: `ツボ あと${st.tsubo}T（使用時1ダメ）` });
+  if ((st.shuchu | 0) > 0) {
+    rows.push({
+      kind: "shuchu",
+      text: `集中 あと${st.shuchu}T（熱量コスト-1・威力+1）`,
+      strong: true,
+    });
   }
-  if ((st.hiyori | 0) > 0) {
-    rows.push({ kind: "hiyori", text: `日和 あと${st.hiyori}T（熱量不可）` });
+  if ((st.gankyo | 0) > 0) {
+    rows.push({
+      kind: "gankyo",
+      text: `頑強 あと${st.gankyo}T（コンボ強化）`,
+      strong: true,
+    });
+  }
+  if (st.toneBoostTones?.length) {
+    const labels = st.toneBoostTones
+      .map((t) => TONE_LABEL[t] || t)
+      .join("・");
+    rows.push({
+      kind: "boost",
+      text: `属性強化: ${labels}（コスト-1・威力+1）`,
+      strong: true,
+    });
+  } else if (st.pendingToneBoost?.length) {
+    const labels = st.pendingToneBoost
+      .map((t) => TONE_LABEL[t] || t)
+      .join("・");
+    rows.push({ kind: "boost", text: `次T属性強化予約: ${labels}` });
+  }
+  if (st.bannedTonesThisTurn?.length) {
+    const labels = st.bannedTonesThisTurn
+      .map((t) => TONE_LABEL[t] || t)
+      .join("・");
+    rows.push({ kind: "ban", text: `属性封じ: ${labels}`, strong: true });
   }
   if (pl?.lastPlayedSpeaker) {
-    rows.push({ kind: "spk", text: `直前発言: ${pl.lastPlayedSpeaker}` });
+    const toneTxt = pl.lastPlayedTone
+      ? TONE_LABEL[pl.lastPlayedTone] || pl.lastPlayedTone
+      : null;
+    rows.push({
+      kind: "spk",
+      text: toneTxt
+        ? `直前: ${pl.lastPlayedSpeaker}【${toneTxt}】`
+        : `直前: ${pl.lastPlayedSpeaker}`,
+    });
   }
   return rows;
+}
+
+function yourTurnJustBegan(state, isYourTurn) {
+  if (!isYourTurn) return false;
+  const prev = lastDuelGameState;
+  if (!prev) return true;
+  if (!prev.isYourTurn) return true;
+  return (state.turnNumber ?? 0) !== (prev.turnNumber ?? 0);
+}
+
+function updateDuelTurnPresentation(state, isYourTurn) {
+  const selfField = document.querySelector(".duel-self-field");
+  const oppField = document.querySelector(".duel-opp-field");
+  const handMat = document.querySelector(".duel-hand-mat");
+  const duelField = document.querySelector(".duel-field");
+  const screenGame = $("#screen-game");
+
+  selfField?.classList.toggle("duel-field--your-turn", isYourTurn);
+  oppField?.classList.toggle("duel-field--opp-turn", !isYourTurn);
+  handMat?.classList.toggle("duel-hand-mat--active", isYourTurn);
+  duelField?.classList.toggle("scg-your-turn", isYourTurn);
+  duelField?.classList.toggle("scg-opp-turn", !isYourTurn);
+  screenGame?.classList.toggle("scg-your-turn", isYourTurn);
+
+  const banner = $("#turn-banner");
+  if (banner) {
+    banner.classList.toggle("your-turn", isYourTurn);
+    banner.classList.toggle("wait", !isYourTurn);
+    if (isYourTurn) {
+      banner.textContent =
+        "▶ あなたの手番 — カードを使い、終わったらターン終了";
+    } else {
+      banner.textContent = "相手の手番 — 相手のプレイを待っています";
+    }
+  }
+
+  const callout = $("#duel-turn-callout");
+  if (callout) {
+    callout.classList.toggle("your-turn", isYourTurn);
+    callout.classList.toggle("wait", !isYourTurn);
+    callout.textContent = isYourTurn ? "▶ あなたの手番" : "相手の手番";
+  }
+
+  const selfPill = $("#self-turn-pill");
+  if (selfPill) {
+    selfPill.hidden = !isYourTurn;
+    selfPill.textContent = "手番中";
+  }
+
+  const oppPill = $("#opp-turn-pill");
+  if (oppPill) {
+    oppPill.hidden = isYourTurn;
+    oppPill.textContent = "手番中";
+  }
+
+  if (yourTurnJustBegan(state, isYourTurn) && selfField) {
+    sfx()?.yourTurnStart();
+    selfField.classList.remove("duel-turn-start-flash");
+    void selfField.offsetWidth;
+    selfField.classList.add("duel-turn-start-flash");
+    clearTimeout(selfField._turnFlashTm);
+    selfField._turnFlashTm = setTimeout(() => {
+      selfField.classList.remove("duel-turn-start-flash");
+    }, 920);
+  }
 }
 
 function renderDuelStatusRails(state) {
@@ -1196,7 +1399,7 @@ function renderDuelStatusRails(state) {
     oppRows.unshift({ kind: "turn", text: "相手の手番", strong: true });
   }
   if (opp.costPool != null) {
-    oppRows.push({ kind: "air", text: `空気 ${opp.costPool}/${opp.maxCost}` });
+    oppRows.push({ kind: "cost", text: `コスト ${opp.costPool}/${opp.maxCost}` });
   }
   fillStatusRail($("#opp-status-rail-body"), oppRows);
 
@@ -1295,14 +1498,18 @@ function onGameState(state) {
   }
   $("#turn-no").textContent = String(state.turnNumber ?? 1);
 
-  const oppSpEl = $("#opp-last-speaker");
-  if (oppSpEl) {
-    oppSpEl.textContent = state.opponent.lastPlayedSpeaker || "—";
-  }
-  const selfSpEl = $("#self-last-speaker");
-  if (selfSpEl) {
-    selfSpEl.textContent = state.you.lastPlayedSpeaker || "—";
-  }
+  updateLastPlayDisplay(
+    $("#opp-last-speaker"),
+    $("#opp-last-tone"),
+    state.opponent.lastPlayedSpeaker,
+    state.opponent.lastPlayedTone
+  );
+  updateLastPlayDisplay(
+    $("#self-last-speaker"),
+    $("#self-last-tone"),
+    state.you.lastPlayedSpeaker,
+    state.you.lastPlayedTone
+  );
 
   const costCurPile = $("#cost-current-pile");
   const costMaxPile = $("#cost-max-pile");
@@ -1318,13 +1525,7 @@ function onGameState(state) {
   const selfDuelCtx = { state, actorSlot: duelActorYou };
   pendingChooseDiscard = null;
 
-  const banner = $("#turn-banner");
-  if (isYourTurn) {
-    banner.textContent = "あなたの手番 — カードを使い、終わったらターン終了";
-  } else {
-    banner.textContent = "相手の手番 — 相手のプレイを待っています";
-  }
-  banner.classList.toggle("wait", !isYourTurn);
+  updateDuelTurnPresentation(state, isYourTurn);
 
   $("#cost-bar-pile")?.classList.toggle("wait", !isYourTurn);
 
@@ -1345,32 +1546,25 @@ function onGameState(state) {
   const canPlay = isYourTurn;
   const lastSp = state.you.lastPlayedSpeaker;
   const youSt = state.you.statuses || {};
-  const muted = !!youSt.mutedThisTurn;
   const hand = $("#hand");
   hand.textContent = "";
   state.you.hand.forEach((card, idx) => {
     const el = makeCardFace(card, { duelCtx: selfDuelCtx });
     el.dataset.index = String(idx);
-    const payCost = effectivePlayCost(card, lastSp, muted);
-    const hiyoriBlock =
-      (youSt.hiyori | 0) > 0 && cardHasTone(card, "passion");
-    const affordable =
-      canPlay && !hiyoriBlock && payCost <= state.you.costPool;
-    const combo = speakerComboReady(card, lastSp, muted);
+    const payCost = effectivePlayCost(card, lastSp, youSt);
+    const affordable = canPlay && payCost <= state.you.costPool;
+    const combo = speakerComboReady(card, lastSp);
 
     if (!affordable) el.classList.add("disabled");
     if (combo && affordable) el.classList.add("card-combo-ready");
-    if (hiyoriBlock) el.classList.add("card-hiyori-blocked");
 
-    if (canPlay && hiyoriBlock) {
-      el.title = "日和状態のため【熱量】カードは使えません";
-    } else if (canPlay && affordable) {
+    if (canPlay && affordable) {
       const comboHint = combo ? "（発言者コンボ）" : "";
       el.title = `クリックで使用${comboHint} · Ctrl+クリックで拡大（Mac は ⌘）`;
     } else if (!canPlay) {
       el.title = "手番ではありません";
     } else {
-      el.title = "空気が足りません";
+      el.title = "コストが足りません";
     }
 
     el.addEventListener("click", (ev) => {
@@ -1380,7 +1574,11 @@ function onGameState(state) {
         openCardZoomPreview(card.id, { actorSlot: duelActorYou });
         return;
       }
-      if (!canPlay || !affordable) return;
+      if (!canPlay || !affordable) {
+        sfx()?.cardDenied();
+        return;
+      }
+      sfx()?.cardClick();
       playCardAction(idx);
     });
     hand.appendChild(el);
@@ -1411,6 +1609,7 @@ function onGameOver(payload) {
   lastOppAttack = -1;
   duelPrevSelfHp = null;
   duelPrevOppHp = null;
+  lastDuelGameState = null;
   const youWin = payload.winnerSlot === lastGameYouAre;
   const disconnect = payload.reason === "disconnect";
   showScreen("screen-result");
@@ -1481,6 +1680,9 @@ async function fetchCatalog() {
     if (!r.ok) throw new Error("cards.json");
     return r.json();
   });
+  if (registry.statusKeys) {
+    Object.assign(STATUS_LABEL, registry.statusKeys);
+  }
   catalogById = {};
   for (const row of registry.cards || []) {
     if (row.excluded || !row.implemented) continue;
@@ -1671,13 +1873,16 @@ function renderDeckBuilder() {
       const counts = {};
       for (const x of currentDeck) counts[x] = (counts[x] || 0) + 1;
       if ((counts[id] || 0) >= MAX_COPIES_PER_CARD) {
+        sfx()?.cardDenied();
         toast(`同じカードは${MAX_COPIES_PER_CARD}枚までです`);
         return;
       }
       if (currentDeck.length >= DECK_SIZE) {
+        sfx()?.cardDenied();
         toast(`${DECK_SIZE}枚までです`);
         return;
       }
+      sfx()?.cardClick();
       currentDeck.push(id);
       renderDeckBuilder();
     });
@@ -1704,9 +1909,10 @@ function renderDeckBuilder() {
 }
 
 function wireUi() {
+  wireUiReactionSounds();
+
   document.querySelectorAll("[data-go]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (typeof ScgSfx !== "undefined") ScgSfx.uiTap();
       const target = btn.getAttribute("data-go");
       if (target === "online") {
         showScreen("screen-online-menu");
@@ -1719,7 +1925,6 @@ function wireUi() {
 
   document.querySelectorAll("[data-back]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (typeof ScgSfx !== "undefined") ScgSfx.uiTap();
       const t = btn.getAttribute("data-back");
       if (t === "title") showScreen("screen-title");
     });
@@ -1930,7 +2135,6 @@ function wireUi() {
   });
 
   $("#btn-duel-zoom-toggle")?.addEventListener("click", () => {
-    if (typeof ScgSfx !== "undefined") ScgSfx.uiTap();
     const cur = sessionStorage.getItem(SS_DUEL_ZOOM_LG);
     if (cur === "0") {
       sessionStorage.removeItem(SS_DUEL_ZOOM_LG);

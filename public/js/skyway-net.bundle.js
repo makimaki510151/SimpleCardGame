@@ -55591,14 +55591,14 @@ var TONE_LABEL = {
   habit: "\u53E3\u7656"
 };
 var STATUS = {
-  TSUBO: "tsubo",
-  HIYORI: "hiyori",
-  MUTE: "mute"
+  KAKUSEI: "kakusei",
+  SHUCHU: "shuchu",
+  GANKYO: "gankyo"
 };
 var STATUS_LABEL = {
-  tsubo: "\u30C4\u30DC",
-  hiyori: "\u65E5\u548C",
-  mute: "\u30DF\u30E5\u30FC\u30C8"
+  kakusei: "\u899A\u9192",
+  shuchu: "\u96C6\u4E2D",
+  gankyo: "\u9811\u5F37"
 };
 var MAX_LOG = 40;
 function pushLog(game, slot, text, cardId, kind, meta) {
@@ -55618,18 +55618,22 @@ function pushLog(game, slot, text, cardId, kind, meta) {
 function cardTone(cardDef) {
   return cardDef?.tone || null;
 }
-function cardHasTone(cardDef, tone) {
-  return cardTone(cardDef) === tone;
-}
 function createEmptyStatuses() {
   return {
-    tsubo: 0,
-    hiyori: 0,
-    pendingMute: false,
-    mutedThisTurn: false,
+    kakusei: 0,
+    shuchu: 0,
+    gankyo: 0,
+    pendingToneBoost: [],
+    toneBoostTones: [],
     pendingToneBan: [],
     bannedTonesThisTurn: []
   };
+}
+function toneAttributeBoost(st, cardDef) {
+  const tone = cardTone(cardDef);
+  if (!tone) return false;
+  if ((st.shuchu | 0) > 0 && tone === TONE.PASSION) return true;
+  return (st.toneBoostTones || []).includes(tone);
 }
 function createPlayerState(deckIds) {
   const deck = shuffle(deckIds.slice());
@@ -55755,29 +55759,35 @@ function speakerCostReduction(cardDef, speakerCombo) {
   if (se.cost_reduction != null) return Math.max(0, se.cost_reduction | 0);
   return 1;
 }
-function effectivePlayCost(cardDef, lastPlayedSpeaker, mutedThisTurn) {
+function effectivePlayCost(cardDef, lastPlayedSpeaker, statuses = {}) {
   const base = cardDef.cost | 0;
-  if (mutedThisTurn) return base;
   const speaker = cardDef.speaker;
-  if (!speaker || !lastPlayedSpeaker || speaker !== lastPlayedSpeaker) {
-    return base;
+  const hasCombo = !!speaker && lastPlayedSpeaker != null && speaker === lastPlayedSpeaker;
+  let reduction = 0;
+  if (hasCombo) {
+    reduction = speakerCostReduction(cardDef, true);
+    if ((statuses.gankyo | 0) > 0) reduction += 1;
   }
-  const reduction = speakerCostReduction(cardDef, true);
+  if (toneAttributeBoost(statuses, cardDef)) {
+    reduction += 1;
+  }
   return Math.max(0, base - reduction);
 }
-function damageMultiplier(cardDef, speakerCombo, game, actorIndex) {
+function damageMultiplier(cardDef, speakerCombo, game, actorIndex, gankyoActive) {
   if (!speakerCombo) return 1;
   const se = cardDef.speaker_effect;
   if (!se) return 1;
+  let mult = 1;
   if (se.damage_multiplier_if) {
     const cond = se.damage_multiplier_if;
     if (evalCondition(game, actorIndex, cond, null)) {
-      return Math.max(1, cond.multiplier | 0);
+      mult = Math.max(1, cond.multiplier | 0);
     }
-    return 1;
+  } else if (se.damage_multiplier != null) {
+    mult = Math.max(1, se.damage_multiplier | 0);
   }
-  if (se.damage_multiplier == null) return 1;
-  return Math.max(1, se.damage_multiplier | 0);
+  if (gankyoActive && mult > 1) mult += 1;
+  return mult;
 }
 function scaledDamage(value, mult, flatBonus) {
   return Math.max(0, ((value | 0) + (flatBonus | 0)) * mult);
@@ -55797,14 +55807,14 @@ function applyStatus(target, status, turns, addTurns) {
   const st = playerStatuses(target);
   const t2 = Math.max(1, turns | 0);
   switch (status) {
-    case STATUS.TSUBO:
-      st.tsubo = addTurns ? (st.tsubo | 0) + t2 : Math.max(st.tsubo | 0, t2);
+    case STATUS.KAKUSEI:
+      st.kakusei = addTurns ? (st.kakusei | 0) + t2 : Math.max(st.kakusei | 0, t2);
       break;
-    case STATUS.HIYORI:
-      st.hiyori = addTurns ? (st.hiyori | 0) + t2 : Math.max(st.hiyori | 0, t2);
+    case STATUS.SHUCHU:
+      st.shuchu = addTurns ? (st.shuchu | 0) + t2 : Math.max(st.shuchu | 0, t2);
       break;
-    case STATUS.MUTE:
-      st.pendingMute = true;
+    case STATUS.GANKYO:
+      st.gankyo = addTurns ? (st.gankyo | 0) + t2 : Math.max(st.gankyo | 0, t2);
       break;
     default:
       break;
@@ -55812,9 +55822,11 @@ function applyStatus(target, status, turns, addTurns) {
 }
 function onTurnStartStatuses(p) {
   const st = playerStatuses(p);
-  if (st.pendingMute) {
-    st.mutedThisTurn = true;
-    st.pendingMute = false;
+  if (st.pendingToneBoost?.length) {
+    st.toneBoostTones = st.pendingToneBoost.slice();
+    st.pendingToneBoost = [];
+  } else {
+    st.toneBoostTones = [];
   }
   if (st.pendingToneBan?.length) {
     st.bannedTonesThisTurn = st.pendingToneBan.slice();
@@ -55825,18 +55837,20 @@ function onTurnStartStatuses(p) {
 }
 function onTurnEndStatuses(p) {
   const st = playerStatuses(p);
-  if (st.tsubo > 0) st.tsubo -= 1;
-  if (st.hiyori > 0) st.hiyori -= 1;
-  st.mutedThisTurn = false;
+  if (st.kakusei > 0) st.kakusei -= 1;
+  if (st.shuchu > 0) st.shuchu -= 1;
+  if (st.gankyo > 0) st.gankyo -= 1;
+  st.toneBoostTones = [];
   st.bannedTonesThisTurn = [];
 }
 function publicStatuses(p) {
   const st = playerStatuses(p);
   return {
-    tsubo: st.tsubo | 0,
-    hiyori: st.hiyori | 0,
-    mutedThisTurn: !!st.mutedThisTurn,
-    pendingMute: !!st.pendingMute,
+    kakusei: st.kakusei | 0,
+    shuchu: st.shuchu | 0,
+    gankyo: st.gankyo | 0,
+    toneBoostTones: (st.toneBoostTones || []).slice(),
+    pendingToneBoost: (st.pendingToneBoost || []).slice(),
     bannedTonesThisTurn: (st.bannedTonesThisTurn || []).slice()
   };
 }
@@ -55916,8 +55930,14 @@ function describeEffectLine(e2) {
       return `${describeIfClause(e2)}\u3067\u81EA\u8EAB\u306B${STATUS_LABEL[e2.status] || e2.status}${e2.turns | 0}T`;
     case "statusOpponentAdd":
       return `\u76F8\u624B\u306B${STATUS_LABEL[e2.status] || e2.status}+${e2.turns | 0}T`;
+    case "statusSelfAdd":
+      return `\u81EA\u8EAB\u306B${STATUS_LABEL[e2.status] || e2.status}+${e2.turns | 0}T`;
     case "toneBanOpponent":
       return `\u76F8\u624B\u6B21T\u5C5E\u6027\u5C01\u3058`;
+    case "toneBoostSelf": {
+      const labels = (e2.tones || []).map((t2) => TONE_LABEL[t2] || t2).join("\u30FB");
+      return `\u81EA\u8EAB\u6B21T\u3010${labels}\u3011\u5F37\u5316`;
+    }
     default:
       break;
   }
@@ -56009,9 +56029,14 @@ function applyEffectList(game, actorIndex, effects, ctx) {
       if (evalCondition(game, actorIndex, e2, ctx)) {
         applyStatus(self2, e2.status, e2.turns ?? 1);
       }
+    } else if (e2.type === "statusSelfAdd") {
+      applyStatus(self2, e2.status, e2.turns ?? 1, true);
     } else if (e2.type === "toneBanOpponent") {
       const ost = playerStatuses(opp);
       ost.pendingToneBan = (e2.tones || []).slice();
+    } else if (e2.type === "toneBoostSelf") {
+      const sst = playerStatuses(self2);
+      sst.pendingToneBoost = (e2.tones || []).slice();
     } else if (e2.type === "damageFromPrevDiscard") {
       const prevId = e2.prevCardId;
       if (prevId && ctx?.prevCardId === prevId && (ctx.prevDiscardCount | 0) > 0) {
@@ -56078,16 +56103,21 @@ function startTurn(game, playerIndex) {
   game.activePlayer = playerIndex;
   const st = playerStatuses(p);
   const statusBits = [];
-  if (st.mutedThisTurn) statusBits.push("\u30DF\u30E5\u30FC\u30C8");
-  if (st.tsubo > 0) statusBits.push(`\u30C4\u30DC${st.tsubo}T`);
-  if (st.hiyori > 0) statusBits.push(`\u65E5\u548C${st.hiyori}T`);
+  if (st.kakusei > 0) statusBits.push(`\u899A\u9192${st.kakusei}T`);
+  if (st.shuchu > 0) statusBits.push(`\u96C6\u4E2D${st.shuchu}T`);
+  if (st.gankyo > 0) statusBits.push(`\u9811\u5F37${st.gankyo}T`);
+  if (st.toneBoostTones?.length) {
+    statusBits.push(
+      `\u5F37\u5316:${st.toneBoostTones.map(toneBanLabel).join("\u30FB")}`
+    );
+  }
   if (st.bannedTonesThisTurn?.length) {
     statusBits.push(
       `\u5C01\u3058:${st.bannedTonesThisTurn.map(toneBanLabel).join("\u30FB")}`
     );
   }
   const who = playerIndex === game.firstPlayer ? "\u5148\u653B" : "\u5F8C\u653B";
-  let logText = `\u30BF\u30FC\u30F3${game.turnNumber} \u2014 ${who}\u306E\u624B\u756A\uFF08\u7A7A\u6C17 ${p.costPool}/${p.maxCost}\uFF09`;
+  let logText = `\u30BF\u30FC\u30F3${game.turnNumber} \u2014 ${who}\u306E\u624B\u756A\uFF08\u30B3\u30B9\u30C8 ${p.costPool}/${p.maxCost}\uFF09`;
   if (statusBits.length) logText += ` [${statusBits.join("\u30FB")}]`;
   pushLog(game, playerIndex, logText, null, "system");
   return { ok: true };
@@ -56098,9 +56128,6 @@ function toneBanLabel(tone) {
 function canPlayCard(game, playerIndex, cardDef) {
   const p = game.players[playerIndex];
   const st = playerStatuses(p);
-  if ((st.hiyori | 0) > 0 && cardHasTone(cardDef, TONE.PASSION)) {
-    return { ok: false, reason: "\u65E5\u548C\u72B6\u614B\u306E\u305F\u3081\u3010\u71B1\u91CF\u3011\u30AB\u30FC\u30C9\u306F\u30D7\u30EC\u30A4\u3067\u304D\u307E\u305B\u3093\u3002" };
-  }
   const tone = cardTone(cardDef);
   if (tone && (st.bannedTonesThisTurn || []).includes(tone)) {
     const labels = (st.bannedTonesThisTurn || []).map(toneBanLabel).join("\u30FB");
@@ -56125,14 +56152,11 @@ function playCard(game, playerIndex, handIndex, cardById) {
   const can = canPlayCard(game, playerIndex, def);
   if (!can.ok) return can;
   const st = playerStatuses(p);
-  const speakerCombo = !st.mutedThisTurn && !!def.speaker && p.lastPlayedSpeaker != null && def.speaker === p.lastPlayedSpeaker;
-  const payCost = effectivePlayCost(
-    def,
-    p.lastPlayedSpeaker,
-    st.mutedThisTurn
-  );
+  const speakerCombo = !!def.speaker && p.lastPlayedSpeaker != null && def.speaker === p.lastPlayedSpeaker;
+  const gankyoActive = (st.gankyo | 0) > 0;
+  const payCost = effectivePlayCost(def, p.lastPlayedSpeaker, st);
   if (payCost > p.costPool) {
-    return { ok: false, reason: "\u30B3\u30B9\u30C8\uFF08\u7A7A\u6C17\uFF09\u304C\u8DB3\u308A\u307E\u305B\u3093\u3002" };
+    return { ok: false, reason: "\u30B3\u30B9\u30C8\u304C\u8DB3\u308A\u307E\u305B\u3093\u3002" };
   }
   p.costPool -= payCost;
   p.hand.splice(handIndex, 1);
@@ -56142,9 +56166,21 @@ function playCard(game, playerIndex, handIndex, cardById) {
     damageFlatBonus = p.nextSpeakerDamageBuff.bonus | 0;
     p.nextSpeakerDamageBuff = null;
   }
+  if (toneAttributeBoost(st, def)) {
+    damageFlatBonus += 1;
+  }
+  if (gankyoActive && speakerCombo) {
+    damageFlatBonus += 1;
+  }
   const se = def.speaker_effect;
   const ctx = {
-    damageMultiplier: damageMultiplier(def, speakerCombo, game, playerIndex),
+    damageMultiplier: damageMultiplier(
+      def,
+      speakerCombo,
+      game,
+      playerIndex,
+      gankyoActive
+    ),
     speakerCombo,
     damageFlatBonus,
     cardById,
@@ -56165,29 +56201,29 @@ function playCard(game, playerIndex, handIndex, cardById) {
   if (speakerCombo && se?.set_next_speaker_damage_buff) {
     p.nextSpeakerDamageBuff = { ...se.set_next_speaker_damage_buff };
   }
-  const prevSpeaker = p.lastPlayedSpeaker;
   p.lastPlayedSpeaker = def.speaker || null;
   p.lastPlayedTone = def.tone || null;
   p.lastPlayedCardId = cardId;
   p.lastPlayDiscardCount = ctx.discardCountThisPlay | 0;
-  if ((st.tsubo | 0) > 0) {
-    p.hp = Math.max(0, p.hp - 1);
+  const opp = game.players[1 - playerIndex];
+  if ((st.kakusei | 0) > 0) {
+    opp.hp = Math.max(0, opp.hp - 1);
     pushLog(
       game,
       playerIndex,
-      "\u30C4\u30DC \u2014 \u7B11\u3044\u3059\u304E\u30661\u30C0\u30E1\u30FC\u30B8",
+      "\u899A\u9192 \u2014 \u76F8\u624B\u306B1\u30C0\u30E1\u30FC\u30B8",
       cardId,
       "status",
-      { status: "tsubo" }
+      { status: "kakusei" }
     );
   }
   const label = def.text || def.name || cardId;
   const effText = cardEffects(def).map(describeEffectLine).join(" / ");
   let logText = label;
-  if (st.mutedThisTurn && prevSpeaker != null && def.speaker === prevSpeaker) {
-    logText += "\uFF08\u30DF\u30E5\u30FC\u30C8\u3067\u30B3\u30F3\u30DC\u7121\u52B9\uFF09";
-  } else if (speakerCombo) {
-    logText += "\uFF08\u767A\u8A00\u8005\u30B3\u30F3\u30DC\uFF09";
+  if (speakerCombo) {
+    logText += gankyoActive ? "\uFF08\u767A\u8A00\u8005\u30B3\u30F3\u30DC\u30FB\u9811\u5F37\uFF09" : "\uFF08\u767A\u8A00\u8005\u30B3\u30F3\u30DC\uFF09";
+  } else if (toneAttributeBoost(st, def)) {
+    logText += (st.shuchu | 0) > 0 ? "\uFF08\u96C6\u4E2D\uFF09" : "\uFF08\u5C5E\u6027\u5F37\u5316\uFF09";
   }
   if (effText) logText += ` \u2014 ${effText}`;
   if (payCost !== (def.cost | 0)) {
@@ -56196,7 +56232,9 @@ function playCard(game, playerIndex, handIndex, cardById) {
   pushLog(game, playerIndex, logText, cardId, "play", {
     speakerCombo,
     payCost,
-    muted: st.mutedThisTurn
+    kakusei: (st.kakusei | 0) > 0,
+    shuchu: (st.shuchu | 0) > 0,
+    gankyo: gankyoActive
   });
   const winner = checkWinner(game);
   if (winner !== null) {

@@ -49,7 +49,7 @@
     <main class="shell">
       <header class="topbar">
         <h1 class="logo">身内語録大戦</h1>
-        <p class="tagline">発言者コンボ・空気コスト・40枚デッキ・20HP</p>
+        <p class="tagline">発言者コンボ・コスト・40枚デッキ・20HP</p>
       </header>
 
       <!-- タイトル -->
@@ -255,6 +255,12 @@
             <header class="duel-field-head duel-field-head--opp">
               <div class="duel-id-block">
                 <span class="duel-player-name">相手</span>
+                <span
+                  class="duel-turn-pill duel-turn-pill--opp"
+                  id="opp-turn-pill"
+                  hidden
+                  >相手の手番</span
+                >
                 <span class="duel-stat-chip duel-stat-chip--hp duel-stat-chip--hp-opp">
                   <span class="duel-stat-chip-label">HP</span>
                   <span class="duel-stat-chip-num"
@@ -263,9 +269,12 @@
                   >
                 </span>
               </div>
-              <div class="duel-speaker-block" aria-label="相手の直前発言者">
+              <div class="duel-speaker-block" aria-label="相手の直前プレイ">
                 <span class="duel-speaker-label">直前</span>
-                <span id="opp-last-speaker" class="duel-speaker-val">—</span>
+                <span class="duel-last-play">
+                  <span id="opp-last-speaker" class="duel-speaker-val">—</span>
+                  <span id="opp-last-tone" class="card-tone" hidden></span>
+                </span>
               </div>
             </header>
             <div class="duel-field-split duel-field-split--opp">
@@ -307,6 +316,13 @@
           </div>
 
           <div class="duel-center">
+            <div
+              class="duel-turn-callout wait"
+              id="duel-turn-callout"
+              aria-live="polite"
+            >
+              相手の手番
+            </div>
             <div class="duel-log-panel">
               <div class="duel-log-head">バトルログ</div>
               <div id="battle-log" class="battle-log" aria-live="polite"></div>
@@ -331,7 +347,7 @@
                   <span class="pile-name">手札</span>
                   <span id="self-hand" class="pile-num">0</span>
                   <div class="duel-pile-cost-row" id="cost-bar-pile">
-                    <span class="duel-pile-cost-label">空気</span>
+                    <span class="duel-pile-cost-label">コスト</span>
                     <div class="duel-pile-cost-values" aria-live="polite">
                       <span id="cost-current-pile">5</span>
                       <span class="duel-pile-cost-sep">/</span>
@@ -343,6 +359,12 @@
               <div class="duel-hand-mat" aria-label="あなたの手札">
                 <div class="duel-hand-mat-head">
                   <span class="duel-hand-mat-player">あなた</span>
+                  <span
+                    class="duel-turn-pill duel-turn-pill--self"
+                    id="self-turn-pill"
+                    hidden
+                    >あなたの手番</span
+                  >
                   <span class="duel-hand-lane-label">手札</span>
                 </div>
                 <div
@@ -366,9 +388,12 @@
                   >
                   <span class="duel-stat-chip duel-stat-chip--speaker">
                     <span class="duel-stat-chip-label">直前</span>
-                    <span id="self-last-speaker" class="duel-stat-chip-num"
-                      >—</span
-                    >
+                    <span class="duel-last-play">
+                      <span id="self-last-speaker" class="duel-stat-chip-num"
+                        >—</span
+                      >
+                      <span id="self-last-tone" class="card-tone" hidden></span>
+                    </span>
                   </span>
                   <span class="duel-stat-chip duel-stat-chip--hp">
                     <span class="duel-stat-chip-label">HP</span>

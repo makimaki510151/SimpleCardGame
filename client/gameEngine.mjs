@@ -34,17 +34,17 @@ export const TONE_LABEL = {
   habit: "口癖",
 };
 
-/** 状態異常 */
+/** バフ状態 */
 export const STATUS = {
-  TSUBO: "tsubo",
-  HIYORI: "hiyori",
-  MUTE: "mute",
+  KAKUSEI: "kakusei",
+  SHUCHU: "shuchu",
+  GANKYO: "gankyo",
 };
 
 export const STATUS_LABEL = {
-  tsubo: "ツボ",
-  hiyori: "日和",
-  mute: "ミュート",
+  kakusei: "覚醒",
+  shuchu: "集中",
+  gankyo: "頑強",
 };
 
 const MAX_LOG = 40;
@@ -74,13 +74,21 @@ export function cardHasTone(cardDef, tone) {
 
 function createEmptyStatuses() {
   return {
-    tsubo: 0,
-    hiyori: 0,
-    pendingMute: false,
-    mutedThisTurn: false,
+    kakusei: 0,
+    shuchu: 0,
+    gankyo: 0,
+    pendingToneBoost: [],
+    toneBoostTones: [],
     pendingToneBan: [],
     bannedTonesThisTurn: [],
   };
+}
+
+function toneAttributeBoost(st, cardDef) {
+  const tone = cardTone(cardDef);
+  if (!tone) return false;
+  if ((st.shuchu | 0) > 0 && tone === TONE.PASSION) return true;
+  return (st.toneBoostTones || []).includes(tone);
 }
 
 export function createPlayerState(deckIds) {
@@ -219,30 +227,37 @@ function speakerCostReduction(cardDef, speakerCombo) {
   return 1;
 }
 
-export function effectivePlayCost(cardDef, lastPlayedSpeaker, mutedThisTurn) {
+export function effectivePlayCost(cardDef, lastPlayedSpeaker, statuses = {}) {
   const base = cardDef.cost | 0;
-  if (mutedThisTurn) return base;
   const speaker = cardDef.speaker;
-  if (!speaker || !lastPlayedSpeaker || speaker !== lastPlayedSpeaker) {
-    return base;
+  const hasCombo =
+    !!speaker && lastPlayedSpeaker != null && speaker === lastPlayedSpeaker;
+  let reduction = 0;
+  if (hasCombo) {
+    reduction = speakerCostReduction(cardDef, true);
+    if ((statuses.gankyo | 0) > 0) reduction += 1;
   }
-  const reduction = speakerCostReduction(cardDef, true);
+  if (toneAttributeBoost(statuses, cardDef)) {
+    reduction += 1;
+  }
   return Math.max(0, base - reduction);
 }
 
-function damageMultiplier(cardDef, speakerCombo, game, actorIndex) {
+function damageMultiplier(cardDef, speakerCombo, game, actorIndex, gankyoActive) {
   if (!speakerCombo) return 1;
   const se = cardDef.speaker_effect;
   if (!se) return 1;
+  let mult = 1;
   if (se.damage_multiplier_if) {
     const cond = se.damage_multiplier_if;
     if (evalCondition(game, actorIndex, cond, null)) {
-      return Math.max(1, cond.multiplier | 0);
+      mult = Math.max(1, cond.multiplier | 0);
     }
-    return 1;
+  } else if (se.damage_multiplier != null) {
+    mult = Math.max(1, se.damage_multiplier | 0);
   }
-  if (se.damage_multiplier == null) return 1;
-  return Math.max(1, se.damage_multiplier | 0);
+  if (gankyoActive && mult > 1) mult += 1;
+  return mult;
 }
 
 function scaledDamage(value, mult, flatBonus) {
@@ -266,18 +281,20 @@ function applyStatus(target, status, turns, addTurns) {
   const st = playerStatuses(target);
   const t = Math.max(1, turns | 0);
   switch (status) {
-    case STATUS.TSUBO:
-      st.tsubo = addTurns
-        ? (st.tsubo | 0) + t
-        : Math.max(st.tsubo | 0, t);
+    case STATUS.KAKUSEI:
+      st.kakusei = addTurns
+        ? (st.kakusei | 0) + t
+        : Math.max(st.kakusei | 0, t);
       break;
-    case STATUS.HIYORI:
-      st.hiyori = addTurns
-        ? (st.hiyori | 0) + t
-        : Math.max(st.hiyori | 0, t);
+    case STATUS.SHUCHU:
+      st.shuchu = addTurns
+        ? (st.shuchu | 0) + t
+        : Math.max(st.shuchu | 0, t);
       break;
-    case STATUS.MUTE:
-      st.pendingMute = true;
+    case STATUS.GANKYO:
+      st.gankyo = addTurns
+        ? (st.gankyo | 0) + t
+        : Math.max(st.gankyo | 0, t);
       break;
     default:
       break;
@@ -286,9 +303,11 @@ function applyStatus(target, status, turns, addTurns) {
 
 function onTurnStartStatuses(p) {
   const st = playerStatuses(p);
-  if (st.pendingMute) {
-    st.mutedThisTurn = true;
-    st.pendingMute = false;
+  if (st.pendingToneBoost?.length) {
+    st.toneBoostTones = st.pendingToneBoost.slice();
+    st.pendingToneBoost = [];
+  } else {
+    st.toneBoostTones = [];
   }
   if (st.pendingToneBan?.length) {
     st.bannedTonesThisTurn = st.pendingToneBan.slice();
@@ -300,19 +319,21 @@ function onTurnStartStatuses(p) {
 
 function onTurnEndStatuses(p) {
   const st = playerStatuses(p);
-  if (st.tsubo > 0) st.tsubo -= 1;
-  if (st.hiyori > 0) st.hiyori -= 1;
-  st.mutedThisTurn = false;
+  if (st.kakusei > 0) st.kakusei -= 1;
+  if (st.shuchu > 0) st.shuchu -= 1;
+  if (st.gankyo > 0) st.gankyo -= 1;
+  st.toneBoostTones = [];
   st.bannedTonesThisTurn = [];
 }
 
 function publicStatuses(p) {
   const st = playerStatuses(p);
   return {
-    tsubo: st.tsubo | 0,
-    hiyori: st.hiyori | 0,
-    mutedThisTurn: !!st.mutedThisTurn,
-    pendingMute: !!st.pendingMute,
+    kakusei: st.kakusei | 0,
+    shuchu: st.shuchu | 0,
+    gankyo: st.gankyo | 0,
+    toneBoostTones: (st.toneBoostTones || []).slice(),
+    pendingToneBoost: (st.pendingToneBoost || []).slice(),
     bannedTonesThisTurn: (st.bannedTonesThisTurn || []).slice(),
   };
 }
@@ -394,8 +415,16 @@ function describeEffectLine(e) {
       return `${describeIfClause(e)}で自身に${STATUS_LABEL[e.status] || e.status}${e.turns | 0}T`;
     case "statusOpponentAdd":
       return `相手に${STATUS_LABEL[e.status] || e.status}+${e.turns | 0}T`;
+    case "statusSelfAdd":
+      return `自身に${STATUS_LABEL[e.status] || e.status}+${e.turns | 0}T`;
     case "toneBanOpponent":
       return `相手次T属性封じ`;
+    case "toneBoostSelf": {
+      const labels = (e.tones || [])
+        .map((t) => TONE_LABEL[t] || t)
+        .join("・");
+      return `自身次T【${labels}】強化`;
+    }
     default:
       break;
   }
@@ -489,9 +518,14 @@ function applyEffectList(game, actorIndex, effects, ctx) {
       if (evalCondition(game, actorIndex, e, ctx)) {
         applyStatus(self, e.status, e.turns ?? 1);
       }
+    } else if (e.type === "statusSelfAdd") {
+      applyStatus(self, e.status, e.turns ?? 1, true);
     } else if (e.type === "toneBanOpponent") {
       const ost = playerStatuses(opp);
       ost.pendingToneBan = (e.tones || []).slice();
+    } else if (e.type === "toneBoostSelf") {
+      const sst = playerStatuses(self);
+      sst.pendingToneBoost = (e.tones || []).slice();
     } else if (e.type === "damageFromPrevDiscard") {
       const prevId = e.prevCardId;
       if (prevId && ctx?.prevCardId === prevId && (ctx.prevDiscardCount | 0) > 0) {
@@ -575,9 +609,14 @@ export function startTurn(game, playerIndex) {
 
   const st = playerStatuses(p);
   const statusBits = [];
-  if (st.mutedThisTurn) statusBits.push("ミュート");
-  if (st.tsubo > 0) statusBits.push(`ツボ${st.tsubo}T`);
-  if (st.hiyori > 0) statusBits.push(`日和${st.hiyori}T`);
+  if (st.kakusei > 0) statusBits.push(`覚醒${st.kakusei}T`);
+  if (st.shuchu > 0) statusBits.push(`集中${st.shuchu}T`);
+  if (st.gankyo > 0) statusBits.push(`頑強${st.gankyo}T`);
+  if (st.toneBoostTones?.length) {
+    statusBits.push(
+      `強化:${st.toneBoostTones.map(toneBanLabel).join("・")}`
+    );
+  }
   if (st.bannedTonesThisTurn?.length) {
     statusBits.push(
       `封じ:${st.bannedTonesThisTurn.map(toneBanLabel).join("・")}`
@@ -585,7 +624,7 @@ export function startTurn(game, playerIndex) {
   }
 
   const who = playerIndex === game.firstPlayer ? "先攻" : "後攻";
-  let logText = `ターン${game.turnNumber} — ${who}の手番（空気 ${p.costPool}/${p.maxCost}）`;
+  let logText = `ターン${game.turnNumber} — ${who}の手番（コスト ${p.costPool}/${p.maxCost}）`;
   if (statusBits.length) logText += ` [${statusBits.join("・")}]`;
   pushLog(game, playerIndex, logText, null, "system");
   return { ok: true };
@@ -598,9 +637,6 @@ function toneBanLabel(tone) {
 export function canPlayCard(game, playerIndex, cardDef) {
   const p = game.players[playerIndex];
   const st = playerStatuses(p);
-  if ((st.hiyori | 0) > 0 && cardHasTone(cardDef, TONE.PASSION)) {
-    return { ok: false, reason: "日和状態のため【熱量】カードはプレイできません。" };
-  }
   const tone = cardTone(cardDef);
   if (tone && (st.bannedTonesThisTurn || []).includes(tone)) {
     const labels = (st.bannedTonesThisTurn || []).map(toneBanLabel).join("・");
@@ -630,18 +666,14 @@ export function playCard(game, playerIndex, handIndex, cardById) {
 
   const st = playerStatuses(p);
   const speakerCombo =
-    !st.mutedThisTurn &&
     !!def.speaker &&
     p.lastPlayedSpeaker != null &&
     def.speaker === p.lastPlayedSpeaker;
+  const gankyoActive = (st.gankyo | 0) > 0;
 
-  const payCost = effectivePlayCost(
-    def,
-    p.lastPlayedSpeaker,
-    st.mutedThisTurn
-  );
+  const payCost = effectivePlayCost(def, p.lastPlayedSpeaker, st);
   if (payCost > p.costPool) {
-    return { ok: false, reason: "コスト（空気）が足りません。" };
+    return { ok: false, reason: "コストが足りません。" };
   }
 
   p.costPool -= payCost;
@@ -656,10 +688,22 @@ export function playCard(game, playerIndex, handIndex, cardById) {
     damageFlatBonus = p.nextSpeakerDamageBuff.bonus | 0;
     p.nextSpeakerDamageBuff = null;
   }
+  if (toneAttributeBoost(st, def)) {
+    damageFlatBonus += 1;
+  }
+  if (gankyoActive && speakerCombo) {
+    damageFlatBonus += 1;
+  }
 
   const se = def.speaker_effect;
   const ctx = {
-    damageMultiplier: damageMultiplier(def, speakerCombo, game, playerIndex),
+    damageMultiplier: damageMultiplier(
+      def,
+      speakerCombo,
+      game,
+      playerIndex,
+      gankyoActive
+    ),
     speakerCombo,
     damageFlatBonus,
     cardById,
@@ -687,35 +731,31 @@ export function playCard(game, playerIndex, handIndex, cardById) {
     p.nextSpeakerDamageBuff = { ...se.set_next_speaker_damage_buff };
   }
 
-  const prevSpeaker = p.lastPlayedSpeaker;
   p.lastPlayedSpeaker = def.speaker || null;
   p.lastPlayedTone = def.tone || null;
   p.lastPlayedCardId = cardId;
   p.lastPlayDiscardCount = ctx.discardCountThisPlay | 0;
 
-  if ((st.tsubo | 0) > 0) {
-    p.hp = Math.max(0, p.hp - 1);
+  const opp = game.players[1 - playerIndex];
+  if ((st.kakusei | 0) > 0) {
+    opp.hp = Math.max(0, opp.hp - 1);
     pushLog(
       game,
       playerIndex,
-      "ツボ — 笑いすぎて1ダメージ",
+      "覚醒 — 相手に1ダメージ",
       cardId,
       "status",
-      { status: "tsubo" }
+      { status: "kakusei" }
     );
   }
 
   const label = def.text || def.name || cardId;
   const effText = cardEffects(def).map(describeEffectLine).join(" / ");
   let logText = label;
-  if (
-    st.mutedThisTurn &&
-    prevSpeaker != null &&
-    def.speaker === prevSpeaker
-  ) {
-    logText += "（ミュートでコンボ無効）";
-  } else if (speakerCombo) {
-    logText += "（発言者コンボ）";
+  if (speakerCombo) {
+    logText += gankyoActive ? "（発言者コンボ・頑強）" : "（発言者コンボ）";
+  } else if (toneAttributeBoost(st, def)) {
+    logText += (st.shuchu | 0) > 0 ? "（集中）" : "（属性強化）";
   }
   if (effText) logText += ` — ${effText}`;
   if (payCost !== (def.cost | 0)) {
@@ -724,7 +764,9 @@ export function playCard(game, playerIndex, handIndex, cardById) {
   pushLog(game, playerIndex, logText, cardId, "play", {
     speakerCombo,
     payCost,
-    muted: st.mutedThisTurn,
+    kakusei: (st.kakusei | 0) > 0,
+    shuchu: (st.shuchu | 0) > 0,
+    gankyo: gankyoActive,
   });
 
   const winner = checkWinner(game);

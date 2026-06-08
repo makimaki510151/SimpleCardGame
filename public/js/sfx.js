@@ -88,8 +88,28 @@
       tone({ freq: 520, dur: 0.045, type: "triangle", gain: 0.07, slide: 80 });
     },
 
+    uiHover() {
+      tone({ freq: 640, dur: 0.028, type: "sine", gain: 0.028, slide: 40 });
+    },
+
     uiPrimary() {
       tone({ freq: 380, dur: 0.055, type: "sine", gain: 0.1, slide: 120 });
+    },
+
+    uiClose() {
+      tone({ freq: 420, dur: 0.035, type: "triangle", gain: 0.04, slide: -50 });
+    },
+
+    cardHover() {
+      tone({ freq: 720, dur: 0.022, type: "sine", gain: 0.03, slide: 30 });
+    },
+
+    cardClick() {
+      tone({ freq: 580, dur: 0.038, type: "triangle", gain: 0.05, slide: 100 });
+    },
+
+    cardDenied() {
+      tone({ freq: 260, dur: 0.06, type: "square", gain: 0.032, slide: -35 });
     },
 
     cardPreview() {
@@ -168,6 +188,25 @@
 
     roundSystem() {
       tone({ freq: 330, dur: 0.12, type: "sine", gain: 0.06, slide: 90 });
+    },
+
+    yourTurnStart() {
+      const c = getCtx();
+      if (!c) return;
+      const t0 = c.currentTime;
+      [523.25, 659.25, 783.99].forEach((f, i) => {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = "sine";
+        o.frequency.setValueAtTime(f, t0 + i * 0.065);
+        g.gain.setValueAtTime(0.0001, t0 + i * 0.065);
+        g.gain.exponentialRampToValueAtTime(0.055, t0 + i * 0.065 + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.065 + 0.12);
+        o.connect(g);
+        g.connect(c.destination);
+        o.start(t0 + i * 0.065);
+        o.stop(t0 + i * 0.065 + 0.14);
+      });
     },
 
     toastOk() {

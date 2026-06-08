@@ -21,13 +21,15 @@ const EFFECT_TYPES = new Set([
   "statusOpponentAdd",
   "statusSelf",
   "statusSelfIf",
+  "statusSelfAdd",
   "damageFromPrevDiscard",
   "damageFromHpDiff",
   "damageFromOpponentHandIf",
   "toneBanOpponent",
+  "toneBoostSelf",
 ]);
 
-const STATUS_TYPES = new Set(["tsubo", "hiyori", "mute"]);
+const STATUS_TYPES = new Set(["kakusei", "shuchu", "gankyo"]);
 const TONE_TYPES = new Set(["passion", "logical", "chaos", "habit"]);
 
 function validateEffectsList(effects, fileId, ctx) {
@@ -40,16 +42,20 @@ function validateEffectsList(effects, fileId, ctx) {
       e.type === "statusSelf" ||
       e.type === "statusOpponentIf" ||
       e.type === "statusSelfIf" ||
-      e.type === "statusOpponentAdd"
+      e.type === "statusOpponentAdd" ||
+      e.type === "statusSelfAdd"
     ) {
       if (!STATUS_TYPES.has(e.status)) {
         throw new Error(`Card ${fileId}: unknown status ${e.status}`);
       }
     }
-    if (e.type === "toneBanOpponent" && Array.isArray(e.tones)) {
+    if (
+      (e.type === "toneBanOpponent" || e.type === "toneBoostSelf") &&
+      Array.isArray(e.tones)
+    ) {
       for (const t of e.tones) {
         if (!TONE_TYPES.has(t)) {
-          throw new Error(`Card ${fileId}: unknown tone ban ${t}`);
+          throw new Error(`Card ${fileId}: unknown tone ${t} in ${e.type}`);
         }
       }
     }
