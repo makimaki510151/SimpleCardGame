@@ -1033,7 +1033,7 @@ h3 {
 .duel-self-main {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 0.5rem;
   flex: 1 1 0;
   min-height: 0;
@@ -1142,6 +1142,8 @@ h3 {
   gap: 0.3rem;
   flex: 0 0 auto;
   width: clamp(4.5rem, 13vw, 5.75rem);
+  min-width: 0;
+  flex-shrink: 0;
 }
 
 .duel-pile-column .pile {
@@ -1213,8 +1215,10 @@ h3 {
 }
 
 .duel-status-rail {
-  flex: 0 0 auto;
-  width: clamp(4.75rem, 14vw, 6.35rem);
+  flex: 0 0 clamp(5.25rem, 15vw, 7.25rem);
+  width: clamp(5.25rem, 15vw, 7.25rem);
+  min-width: 0;
+  max-width: 7.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.28rem;
@@ -1223,7 +1227,10 @@ h3 {
   border: 1px solid rgba(139, 148, 158, 0.35);
   background: rgba(13, 17, 23, 0.92);
   min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
   align-self: stretch;
+  box-sizing: border-box;
 }
 
 .duel-status-rail--opp {
@@ -1246,10 +1253,17 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 0.22rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 148, 158, 0.55) rgba(13, 17, 23, 0.98);
 }
 
 .duel-fx-line {
-  font-size: 0.66rem;
+  font-size: 0.64rem;
   line-height: 1.32;
   padding: 0.18rem 0.26rem;
   border-radius: 7px;
@@ -1257,7 +1271,9 @@ h3 {
   border: 1px solid var(--line);
   color: #c9d1d9;
   text-align: center;
+  overflow-wrap: anywhere;
   word-break: break-word;
+  flex-shrink: 0;
 }
 
 .duel-fx-line--turn {
@@ -1354,13 +1370,15 @@ h3 {
 }
 
 .duel-hand-mat {
-  flex: 0 0 auto;
+  flex: 1 1 0;
   min-width: 0;
+  width: auto;
   max-width: 100%;
-  width: 100%;
   display: flex;
   flex-direction: column;
   padding: 0.4rem 0.45rem 0.45rem;
+  overflow: hidden;
+  box-sizing: border-box;
   border-radius: 12px;
   border: 1px solid rgba(88, 166, 255, 0.38);
   background: linear-gradient(
@@ -1452,18 +1470,28 @@ h3 {
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 0.35rem 0.22rem 0.08rem;
-  height: calc(var(--duel-card-h) + 1.05rem);
-  min-height: calc(var(--duel-card-h) + 1.05rem);
-  max-height: calc(var(--duel-card-h) + 1.05rem);
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.42rem 0.28rem 0.14rem;
+  height: calc(var(--duel-card-h) + 1.85rem);
+  min-height: calc(var(--duel-card-h) + 1.85rem);
+  max-height: calc(var(--duel-card-h) + 1.85rem);
   overflow-x: auto;
   overflow-y: hidden;
-  flex: 0 0 auto;
+  scroll-padding-inline: 0.35rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.duel-hand-mat .duel-hand-self::after {
+  content: "";
+  flex: 0 0 0.4rem;
+  height: 1px;
 }
 
 .duel-hand-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgba(88, 166, 255, 0.55) rgba(13, 17, 23, 0.98);
+  scrollbar-gutter: stable;
   touch-action: pan-x pinch-zoom;
 }
 
@@ -1506,7 +1534,7 @@ h3 {
 }
 
 .duel-hand-self .card-face:hover:not(.disabled) {
-  transform: translateY(-6px);
+  transform: translateY(-4px);
 }
 
 .duel-hand-self .card-face.disabled {
@@ -1564,7 +1592,7 @@ h3 {
 }
 
 .duel-turn-pill {
-  display: inline-flex;
+  display: none;
   align-items: center;
   padding: 0.12rem 0.48rem;
   border-radius: 999px;
@@ -1573,6 +1601,10 @@ h3 {
   letter-spacing: 0.1em;
   line-height: 1.2;
   white-space: nowrap;
+}
+
+.duel-turn-pill.is-active {
+  display: inline-flex;
 }
 
 .duel-turn-pill--self {

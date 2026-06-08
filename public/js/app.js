@@ -1369,13 +1369,13 @@ function updateDuelTurnPresentation(state, isYourTurn) {
 
   const selfPill = $("#self-turn-pill");
   if (selfPill) {
-    selfPill.hidden = !isYourTurn;
+    selfPill.classList.toggle("is-active", isYourTurn);
     selfPill.textContent = "手番中";
   }
 
   const oppPill = $("#opp-turn-pill");
   if (oppPill) {
-    oppPill.hidden = isYourTurn;
+    oppPill.classList.toggle("is-active", !isYourTurn);
     oppPill.textContent = "手番中";
   }
 
