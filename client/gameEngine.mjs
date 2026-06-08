@@ -11,6 +11,9 @@ function shuffle(array) {
 }
 
 export const MAX_HP = 20;
+export const DECK_SIZE = 40;
+export const MAX_COPIES_PER_CARD = 4;
+export const INITIAL_DRAW = 5;
 export const MAX_COST_CAP = 10;
 export const DRAW_PER_TURN = 1;
 export const FIRST_PLAYER_INITIAL_MAX = 3;
@@ -47,23 +50,27 @@ export function createPlayerState(deckIds) {
   };
 }
 
-function reshuffleDiscardIntoDeck(p) {
-  if (p.discard.length === 0) return;
-  const pile = shuffle(p.discard.slice());
-  p.deck.push(...pile);
-  p.discard.length = 0;
-}
-
+/** 山札のみから引く（捨て札は戻さない）。不足分は引かない */
 function drawCards(p, n) {
   const drawn = [];
   for (let i = 0; i < n; i++) {
-    if (p.deck.length === 0) {
-      reshuffleDiscardIntoDeck(p);
-    }
     if (p.deck.length === 0) break;
     drawn.push(p.deck.pop());
   }
   return drawn;
+}
+
+/** ターン開始・初期手札用。山札が足りなければ ok: false */
+function drawCardsStrict(p, n) {
+  const need = n | 0;
+  const drawn = [];
+  for (let i = 0; i < need; i++) {
+    if (p.deck.length === 0) {
+      return { ok: false, drawn };
+    }
+    drawn.push(p.deck.pop());
+  }
+  return { ok: true, drawn };
 }
 
 function discardRandomFromHand(p, n) {
@@ -195,13 +202,41 @@ function applyEffectList(game, actorIndex, effects, ctx) {
 }
 
 /**
- * ゲーム開始 — 先攻プレイヤーのターン開始
+ * ゲーム開始 — 両者に初期手札5枚 → 先攻ターン開始（+1ドロー）
  */
 export function startGame(game, firstPlayer = 0) {
   game.firstPlayer = firstPlayer | 0;
   game.turnNumber = 0;
   game.activePlayer = null;
-  startTurn(game, game.firstPlayer);
+
+  for (let i = 0; i < 2; i++) {
+    const res = drawCardsStrict(game.players[i], INITIAL_DRAW);
+    if (!res.ok) {
+      pushLog(
+        game,
+        i,
+        `初期手札${INITIAL_DRAW}枚を引けず山札切れ — 敗北`,
+        null,
+        "system",
+        { deckOut: true }
+      );
+      return { winnerIndex: 1 - i };
+    }
+    game.players[i].hand.push(...res.drawn);
+    pushLog(
+      game,
+      i,
+      `初期手札 ${INITIAL_DRAW} 枚`,
+      null,
+      "system"
+    );
+  }
+
+  const turnRes = startTurn(game, game.firstPlayer);
+  if (turnRes?.winnerIndex !== undefined) {
+    return { winnerIndex: turnRes.winnerIndex };
+  }
+  return { ok: true };
 }
 
 /**
@@ -221,8 +256,20 @@ export function startTurn(game, playerIndex) {
   p.costPool = p.maxCost;
   p.lastPlayedSpeaker = null;
 
-  const drawn = drawCards(p, DRAW_PER_TURN);
-  p.hand.push(...drawn);
+  const drawRes = drawCardsStrict(p, DRAW_PER_TURN);
+  if (!drawRes.ok) {
+    const winner = 1 - playerIndex;
+    pushLog(
+      game,
+      playerIndex,
+      "ターン開始ドロー時に山札切れ — 敗北",
+      null,
+      "system",
+      { deckOut: true }
+    );
+    return { winnerIndex: winner };
+  }
+  p.hand.push(...drawRes.drawn);
 
   game.turnNumber = (game.turnNumber | 0) + 1;
   game.activePlayer = playerIndex;
@@ -235,6 +282,7 @@ export function startTurn(game, playerIndex) {
     null,
     "system"
   );
+  return { ok: true };
 }
 
 export function playCard(game, playerIndex, handIndex, cardById) {
@@ -310,7 +358,10 @@ export function endTurn(game, playerIndex) {
   pushLog(game, playerIndex, "ターン終了", null, "endTurn");
 
   const next = 1 - playerIndex;
-  startTurn(game, next);
+  const turnRes = startTurn(game, next);
+  if (turnRes?.winnerIndex !== undefined) {
+    return { ok: true, winnerIndex: turnRes.winnerIndex };
+  }
   return { ok: true };
 }
 

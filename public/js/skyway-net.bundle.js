@@ -55571,6 +55571,9 @@ function shuffle(array) {
   return a;
 }
 var MAX_HP = 20;
+var DECK_SIZE = 40;
+var MAX_COPIES_PER_CARD = 4;
+var INITIAL_DRAW = 5;
 var MAX_COST_CAP = 10;
 var DRAW_PER_TURN = 1;
 var FIRST_PLAYER_INITIAL_MAX = 3;
@@ -55603,22 +55606,24 @@ function createPlayerState(deckIds) {
     lastPlayedSpeaker: null
   };
 }
-function reshuffleDiscardIntoDeck(p) {
-  if (p.discard.length === 0) return;
-  const pile = shuffle(p.discard.slice());
-  p.deck.push(...pile);
-  p.discard.length = 0;
-}
 function drawCards(p, n2) {
   const drawn = [];
   for (let i = 0; i < n2; i++) {
-    if (p.deck.length === 0) {
-      reshuffleDiscardIntoDeck(p);
-    }
     if (p.deck.length === 0) break;
     drawn.push(p.deck.pop());
   }
   return drawn;
+}
+function drawCardsStrict(p, n2) {
+  const need = n2 | 0;
+  const drawn = [];
+  for (let i = 0; i < need; i++) {
+    if (p.deck.length === 0) {
+      return { ok: false, drawn };
+    }
+    drawn.push(p.deck.pop());
+  }
+  return { ok: true, drawn };
 }
 function discardRandomFromHand(p, n2) {
   const take = Math.min(n2 | 0, p.hand.length);
@@ -55741,7 +55746,33 @@ function startGame(game, firstPlayer = 0) {
   game.firstPlayer = firstPlayer | 0;
   game.turnNumber = 0;
   game.activePlayer = null;
-  startTurn(game, game.firstPlayer);
+  for (let i = 0; i < 2; i++) {
+    const res = drawCardsStrict(game.players[i], INITIAL_DRAW);
+    if (!res.ok) {
+      pushLog(
+        game,
+        i,
+        `\u521D\u671F\u624B\u672D${INITIAL_DRAW}\u679A\u3092\u5F15\u3051\u305A\u5C71\u672D\u5207\u308C \u2014 \u6557\u5317`,
+        null,
+        "system",
+        { deckOut: true }
+      );
+      return { winnerIndex: 1 - i };
+    }
+    game.players[i].hand.push(...res.drawn);
+    pushLog(
+      game,
+      i,
+      `\u521D\u671F\u624B\u672D ${INITIAL_DRAW} \u679A`,
+      null,
+      "system"
+    );
+  }
+  const turnRes = startTurn(game, game.firstPlayer);
+  if (turnRes?.winnerIndex !== void 0) {
+    return { winnerIndex: turnRes.winnerIndex };
+  }
+  return { ok: true };
 }
 function startTurn(game, playerIndex) {
   const p = game.players[playerIndex];
@@ -55753,8 +55784,20 @@ function startTurn(game, playerIndex) {
   p.turnCount += 1;
   p.costPool = p.maxCost;
   p.lastPlayedSpeaker = null;
-  const drawn = drawCards(p, DRAW_PER_TURN);
-  p.hand.push(...drawn);
+  const drawRes = drawCardsStrict(p, DRAW_PER_TURN);
+  if (!drawRes.ok) {
+    const winner = 1 - playerIndex;
+    pushLog(
+      game,
+      playerIndex,
+      "\u30BF\u30FC\u30F3\u958B\u59CB\u30C9\u30ED\u30FC\u6642\u306B\u5C71\u672D\u5207\u308C \u2014 \u6557\u5317",
+      null,
+      "system",
+      { deckOut: true }
+    );
+    return { winnerIndex: winner };
+  }
+  p.hand.push(...drawRes.drawn);
   game.turnNumber = (game.turnNumber | 0) + 1;
   game.activePlayer = playerIndex;
   const who = playerIndex === game.firstPlayer ? "\u5148\u653B" : "\u5F8C\u653B";
@@ -55765,6 +55808,7 @@ function startTurn(game, playerIndex) {
     null,
     "system"
   );
+  return { ok: true };
 }
 function playCard(game, playerIndex, handIndex, cardById) {
   if (game.activePlayer !== playerIndex) {
@@ -55823,7 +55867,10 @@ function endTurn(game, playerIndex) {
   }
   pushLog(game, playerIndex, "\u30BF\u30FC\u30F3\u7D42\u4E86", null, "endTurn");
   const next = 1 - playerIndex;
-  startTurn(game, next);
+  const turnRes = startTurn(game, next);
+  if (turnRes?.winnerIndex !== void 0) {
+    return { ok: true, winnerIndex: turnRes.winnerIndex };
+  }
   return { ok: true };
 }
 function publicSnapshot(game, viewerIndex, cardById) {
@@ -55870,8 +55917,11 @@ function parsePayload(data) {
   return JSON.parse(s);
 }
 function validateDeck(cardIds, byId) {
-  if (!Array.isArray(cardIds) || cardIds.length !== 20) {
-    return { ok: false, reason: "\u30C7\u30C3\u30AD\u306F\u3061\u3087\u3046\u306920\u679A\u3067\u3042\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059\u3002" };
+  if (!Array.isArray(cardIds) || cardIds.length !== DECK_SIZE) {
+    return {
+      ok: false,
+      reason: `\u30C7\u30C3\u30AD\u306F\u3061\u3087\u3046\u3069${DECK_SIZE}\u679A\u3067\u3042\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059\u3002`
+    };
   }
   const counts = {};
   for (const cid of cardIds) {
@@ -55879,8 +55929,11 @@ function validateDeck(cardIds, byId) {
       return { ok: false, reason: `\u4E0D\u660E\u306A\u30AB\u30FC\u30C9: ${cid}` };
     }
     counts[cid] = (counts[cid] || 0) + 1;
-    if (counts[cid] > 2) {
-      return { ok: false, reason: "\u540C\u3058\u30AB\u30FC\u30C9\u306F1\u30C7\u30C3\u30AD\u306B2\u679A\u307E\u3067\u3067\u3059\u3002" };
+    if (counts[cid] > MAX_COPIES_PER_CARD) {
+      return {
+        ok: false,
+        reason: `\u540C\u3058\u30AB\u30FC\u30C9\u306F1\u30C7\u30C3\u30AD\u306B${MAX_COPIES_PER_CARD}\u679A\u307E\u3067\u3067\u3059\u3002`
+      };
     }
   }
   return { ok: true };
@@ -55986,7 +56039,18 @@ function createSkyWayP2P({
       log: [],
       _logSeq: 0
     };
-    startGame(game, hostSlot);
+    const startRes = startGame(game, hostSlot);
+    if (startRes?.winnerIndex !== void 0) {
+      emitGameBoth();
+      broadcastDown({
+        t: "gameOver",
+        winnerSlot: startRes.winnerIndex,
+        reason: "deckOut"
+      });
+      game = null;
+      onGameOver({ winnerSlot: startRes.winnerIndex, reason: "deckOut" });
+      return;
+    }
     emitGameBoth();
   }
   const actionQueue = [];
@@ -56060,12 +56124,19 @@ function createSkyWayP2P({
           reportActionError(item.slot, res.reason);
         } else {
           emitted = true;
-          const winner = game.players[0].hp <= 0 ? 1 : game.players[1].hp <= 0 ? 0 : null;
+          const winner = res.winnerIndex ?? (game.players[0].hp <= 0 ? 1 : game.players[1].hp <= 0 ? 0 : null);
           if (winner !== null) {
             emitGameBoth();
-            broadcastDown({ t: "gameOver", winnerSlot: winner });
+            broadcastDown({
+              t: "gameOver",
+              winnerSlot: winner,
+              reason: res.winnerIndex != null ? "deckOut" : void 0
+            });
             game = null;
-            onGameOver({ winnerSlot: winner });
+            onGameOver({
+              winnerSlot: winner,
+              reason: res.winnerIndex != null ? "deckOut" : void 0
+            });
             continue;
           }
         }

@@ -71,9 +71,12 @@ function loadCardCatalog() {
   return { manifest, byId };
 }
 
+const DECK_SIZE = 40;
+const MAX_COPIES_PER_CARD = 4;
+
 function validateDeck(cardIds, byId) {
-  if (!Array.isArray(cardIds) || cardIds.length !== 20) {
-    return { ok: false, reason: "デッキはちょうど20枚である必要があります。" };
+  if (!Array.isArray(cardIds) || cardIds.length !== DECK_SIZE) {
+    return { ok: false, reason: `デッキはちょうど${DECK_SIZE}枚である必要があります。` };
   }
   const counts = {};
   for (const cid of cardIds) {
@@ -81,8 +84,11 @@ function validateDeck(cardIds, byId) {
       return { ok: false, reason: `不明なカード: ${cid}` };
     }
     counts[cid] = (counts[cid] || 0) + 1;
-    if (counts[cid] > 2) {
-      return { ok: false, reason: "同じカードは1デッキに2枚までです。" };
+    if (counts[cid] > MAX_COPIES_PER_CARD) {
+      return {
+        ok: false,
+        reason: `同じカードは1デッキに${MAX_COPIES_PER_CARD}枚までです。`,
+      };
     }
   }
   return { ok: true };
@@ -102,4 +108,6 @@ module.exports = {
   validateDeck,
   shuffle,
   CARDS_DIR,
+  DECK_SIZE,
+  MAX_COPIES_PER_CARD,
 };

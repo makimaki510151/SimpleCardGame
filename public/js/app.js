@@ -4,8 +4,9 @@ const LS_EDITOR_DECK = "scg_editor_deck_id";
 const LS_LOBBY_DECK = "scg_lobby_deck_id";
 const MAX_SAVED_DECKS = 16;
 const SS_DUEL_ZOOM_LG = "scg_duel_zoom_lg";
+const DECK_SIZE = 40;
 /** 1デッキあたり同一カードの上限枚数 */
-const MAX_COPIES_PER_CARD = 2;
+const MAX_COPIES_PER_CARD = 4;
 
 let catalogById = {};
 let initialDeckIds = [];
@@ -446,7 +447,7 @@ function migrateLegacyDeckIfNeeded() {
     const raw = localStorage.getItem(LS_DECK_LEGACY);
     if (!raw) return;
     const arr = JSON.parse(raw);
-    if (Array.isArray(arr) && arr.length === 20) {
+    if (Array.isArray(arr) && arr.length === DECK_SIZE) {
       const id = newDeckId();
       saveDecksListRaw([{ id, name: "デッキ1", cardIds: arr }]);
       localStorage.setItem(LS_EDITOR_DECK, id);
@@ -462,7 +463,7 @@ function loadDecksList() {
   let decks = loadDecksListRaw();
   if (
     decks.length === 0 &&
-    initialDeckIds.length === 20 &&
+    initialDeckIds.length === DECK_SIZE &&
     validateDeckClient(initialDeckIds).ok
   ) {
     const id = newDeckId();
@@ -495,7 +496,7 @@ function fillLobbyDeckSelect() {
   const optInit = document.createElement("option");
   optInit.value = "__initial__";
   const initOk =
-    initialDeckIds.length === 20 && validateDeckClient(initialDeckIds).ok;
+    initialDeckIds.length === DECK_SIZE && validateDeckClient(initialDeckIds).ok;
   optInit.textContent = initOk ? "初期デッキ" : "初期デッキ（対戦不可）";
   optInit.disabled = !initOk;
   sel.appendChild(optInit);
@@ -504,7 +505,7 @@ function fillLobbyDeckSelect() {
     op.value = d.id;
     const legal =
       Array.isArray(d.cardIds) &&
-      d.cardIds.length === 20 &&
+      d.cardIds.length === DECK_SIZE &&
       validateDeckClient(d.cardIds).ok;
     op.textContent = legal ? d.name : `${d.name}（対戦不可）`;
     op.disabled = !legal;
@@ -525,19 +526,19 @@ function lobbyChosenDeckIds() {
   const v = sel?.value;
   let ids = null;
   if (v === "__initial__") {
-    if (initialDeckIds.length === 20) ids = initialDeckIds.slice();
+    if (initialDeckIds.length === DECK_SIZE) ids = initialDeckIds.slice();
   } else {
     const d = loadDecksList().find((x) => x.id === v);
-    if (d?.cardIds?.length === 20) ids = d.cardIds.slice();
+    if (d?.cardIds?.length === DECK_SIZE) ids = d.cardIds.slice();
   }
   if (!ids) return null;
   return validateDeckClient(ids).ok ? ids : null;
 }
 
-/** 互換: 送信可能な（20枚の）保存デッキがあればその cardIds */
+/** 互換: 送信可能な保存デッキがあればその cardIds */
 function loadSavedDeck() {
   for (const d of loadDecksList()) {
-    if (d?.cardIds?.length === 20 && validateDeckClient(d.cardIds).ok) {
+    if (d?.cardIds?.length === DECK_SIZE && validateDeckClient(d.cardIds).ok) {
       return d.cardIds.slice();
     }
   }
@@ -548,8 +549,8 @@ function validateDeckCounts(ids) {
   if (!Array.isArray(ids)) {
     return { ok: false, reason: "デッキデータが不正です。" };
   }
-  if (ids.length > 20) {
-    return { ok: false, reason: "20枚までです。" };
+  if (ids.length > DECK_SIZE) {
+    return { ok: false, reason: `${DECK_SIZE}枚までです。` };
   }
   const counts = {};
   for (const cid of ids) {
@@ -568,8 +569,8 @@ function validateDeckCounts(ids) {
 }
 
 function validateDeckClient(ids) {
-  if (!Array.isArray(ids) || ids.length !== 20) {
-    return { ok: false, reason: "デッキはちょうど20枚である必要があります。" };
+  if (!Array.isArray(ids) || ids.length !== DECK_SIZE) {
+    return { ok: false, reason: `デッキはちょうど${DECK_SIZE}枚である必要があります。` };
   }
   return validateDeckCounts(ids);
 }
@@ -577,7 +578,7 @@ function validateDeckClient(ids) {
 const DECK_CODE_PREFIX = "SCG1|";
 
 function encodeDeckCode(cardIds) {
-  if (!Array.isArray(cardIds) || cardIds.length !== 20) return "";
+  if (!Array.isArray(cardIds) || cardIds.length !== DECK_SIZE) return "";
   return `${DECK_CODE_PREFIX}${cardIds.join("|")}`;
 }
 
@@ -586,10 +587,10 @@ function decodeDeckCode(raw) {
   if (!s) return { ok: false, reason: "デッキコードが空です。" };
   const body = s.startsWith(DECK_CODE_PREFIX) ? s.slice(DECK_CODE_PREFIX.length) : s;
   const ids = body.split("|").map((x) => x.trim()).filter(Boolean);
-  if (ids.length !== 20) {
+  if (ids.length !== DECK_SIZE) {
     return {
       ok: false,
-      reason: "形式が不正です。SCG1| で始まり、20枚のカードIDを | で区切ります。",
+      reason: `形式が不正です。SCG1| で始まり、${DECK_SIZE}枚のカードIDを | で区切ります。`,
     };
   }
   const v = validateDeckClient(ids);
@@ -601,7 +602,7 @@ function prefillLobbyDeckCodeFromSelect() {
   const ta = document.getElementById("lobby-deck-code");
   if (!ta) return;
   const ids = lobbyChosenDeckIds();
-  if (ids && ids.length === 20) {
+  if (ids && ids.length === DECK_SIZE) {
     ta.value = encodeDeckCode(ids);
   }
 }
@@ -1069,9 +1070,14 @@ function onGameOver(payload) {
     if (youWin && !disconnect) ScgSfx.gameWin();
     else if (!youWin) ScgSfx.gameLose();
   }
+  const deckOut = payload.reason === "deckOut";
   let detail = youWin
-    ? "相手のHPを0にし、デュエルを制しました。"
-    : "あなたのHPが0になり、デュエルは続行できません。";
+    ? deckOut
+      ? "相手が山札切れとなり、デュエルを制しました。"
+      : "相手のHPを0にし、デュエルを制しました。"
+    : deckOut
+      ? "山札切れにより、デュエルは続行できません。"
+      : "あなたのHPが0になり、デュエルは続行できません。";
   if (disconnect) {
     detail = youWin
       ? "相手が切断したため、こちらの不戦勝となりました。"
@@ -1085,13 +1091,13 @@ function onGameOver(payload) {
 
 async function fetchCatalog() {
   const mergeInitialFromStatic = async () => {
-    if (initialDeckIds.length === 20) return;
+    if (initialDeckIds.length === DECK_SIZE) return;
     const init = await fetch(resolveUrl("data/initial-deck.json")).then((r) => {
       if (!r.ok) throw new Error("initial");
       return r.json();
     });
     const ids = init.cardIds;
-    if (Array.isArray(ids) && ids.length === 20) initialDeckIds = ids.slice();
+    if (Array.isArray(ids) && ids.length === DECK_SIZE) initialDeckIds = ids.slice();
   };
 
   const api = resolveUrl("api/cards");
@@ -1177,7 +1183,9 @@ function renderDeckListScreen() {
     const sub = document.createElement("div");
     sub.className = "deck-list-sub";
     const v = validateDeckClient(ids);
-    sub.textContent = v.ok ? "20 / 20 枚（送信可）" : `${ids.length} / 20 枚`;
+    sub.textContent = v.ok
+      ? `${DECK_SIZE} / ${DECK_SIZE} 枚（送信可）`
+      : `${ids.length} / ${DECK_SIZE} 枚`;
     meta.append(name, sub);
     const actions = document.createElement("div");
     actions.className = "deck-list-actions";
@@ -1256,7 +1264,7 @@ function renderDeckBuilder() {
       plus.type = "button";
       plus.className = "btn ghost deck-strip-btn";
       plus.textContent = "+1";
-      const atCap = n >= MAX_COPIES_PER_CARD || currentDeck.length >= 20;
+      const atCap = n >= MAX_COPIES_PER_CARD || currentDeck.length >= DECK_SIZE;
       plus.disabled = atCap;
       plus.addEventListener("click", () => {
         const counts = {};
@@ -1265,8 +1273,8 @@ function renderDeckBuilder() {
           toast(`同じカードは${MAX_COPIES_PER_CARD}枚までです`);
           return;
         }
-        if (currentDeck.length >= 20) {
-          toast("20枚までです");
+        if (currentDeck.length >= DECK_SIZE) {
+          toast(`${DECK_SIZE}枚までです`);
           return;
         }
         currentDeck.push(cid);
@@ -1307,8 +1315,8 @@ function renderDeckBuilder() {
         toast(`同じカードは${MAX_COPIES_PER_CARD}枚までです`);
         return;
       }
-      if (currentDeck.length >= 20) {
-        toast("20枚までです");
+      if (currentDeck.length >= DECK_SIZE) {
+        toast(`${DECK_SIZE}枚までです`);
         return;
       }
       currentDeck.push(id);
@@ -1331,7 +1339,7 @@ function renderDeckBuilder() {
     st.textContent = "（送信可能）";
     st.className = "deck-status ok";
   } else {
-    st.textContent = `（あと ${20 - currentDeck.length} 枚で完成）`;
+    st.textContent = `（あと ${DECK_SIZE - currentDeck.length} 枚で完成）`;
     st.className = "deck-status";
   }
 }
@@ -1490,7 +1498,7 @@ function wireUi() {
   $("#btn-lobby-deck-export")?.addEventListener("click", async () => {
     const ids = lobbyChosenDeckIds();
     if (!ids) {
-      toast("エクスポートできる20枚のデッキがありません");
+      toast(`エクスポートできる${DECK_SIZE}枚のデッキがありません`);
       return;
     }
     const code = encodeDeckCode(ids);
@@ -1511,11 +1519,11 @@ function wireUi() {
     if (!skywaySession) return;
     let raw = null;
     if (v === "__initial__") {
-      raw = initialDeckIds.length === 20 ? initialDeckIds.slice() : null;
+      raw = initialDeckIds.length === DECK_SIZE ? initialDeckIds.slice() : null;
     } else {
       const d = loadDecksList().find((x) => x.id === v);
       raw =
-        d?.cardIds && d.cardIds.length === 20 ? d.cardIds.slice() : null;
+        d?.cardIds && d.cardIds.length === DECK_SIZE ? d.cardIds.slice() : null;
     }
     if (!raw) {
       if (v === "__initial__") {
@@ -1539,18 +1547,18 @@ function wireUi() {
       const key = sel?.value;
       if (key === "__initial__") {
         raw =
-          initialDeckIds.length === 20 ? initialDeckIds.slice() : null;
+          initialDeckIds.length === DECK_SIZE ? initialDeckIds.slice() : null;
       } else if (key) {
         const d = loadDecksList().find((x) => x.id === key);
         raw =
-          d?.cardIds && d.cardIds.length === 20 ? d.cardIds.slice() : null;
+          d?.cardIds && d.cardIds.length === DECK_SIZE ? d.cardIds.slice() : null;
       }
       const v = raw && validateDeckClient(raw);
       if (!v || !v.ok) {
         e.target.checked = false;
         toast(
           v?.reason ||
-            "対戦用のデッキを選んでください（20枚・同じカードは2枚まで）。"
+            `対戦用のデッキを選んでください（${DECK_SIZE}枚・同じカードは${MAX_COPIES_PER_CARD}枚まで）。`
         );
         return;
       }
@@ -1635,7 +1643,7 @@ function wireUi() {
   $("#btn-deck-export-code")?.addEventListener("click", async () => {
     const v = validateDeckClient(currentDeck);
     if (!v.ok) {
-      toast("20枚そろっていないためコード化できません");
+      toast(`${DECK_SIZE}枚そろっていないためコード化できません`);
       return;
     }
     const code = encodeDeckCode(currentDeck);
@@ -1648,7 +1656,9 @@ function wireUi() {
   });
 
   $("#btn-deck-import-code")?.addEventListener("click", () => {
-    const raw = window.prompt("デッキコードを貼り付け（SCG1|で始まる20枚）");
+    const raw = window.prompt(
+      `デッキコードを貼り付け（SCG1|で始まる${DECK_SIZE}枚）`
+    );
     if (raw == null) return;
     const dec = decodeDeckCode(raw);
     if (!dec.ok || !dec.cardIds) {

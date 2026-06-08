@@ -20,8 +20,11 @@ function normalizeDiscardPicks(raw) {
 }
 
 function validateDeck(cardIds, byId) {
-  if (!Array.isArray(cardIds) || cardIds.length !== 20) {
-    return { ok: false, reason: "デッキはちょうど20枚である必要があります。" };
+  if (!Array.isArray(cardIds) || cardIds.length !== Engine.DECK_SIZE) {
+    return {
+      ok: false,
+      reason: `デッキはちょうど${Engine.DECK_SIZE}枚である必要があります。`,
+    };
   }
   const counts = {};
   for (const cid of cardIds) {
@@ -29,8 +32,11 @@ function validateDeck(cardIds, byId) {
       return { ok: false, reason: `不明なカード: ${cid}` };
     }
     counts[cid] = (counts[cid] || 0) + 1;
-    if (counts[cid] > 2) {
-      return { ok: false, reason: "同じカードは1デッキに2枚までです。" };
+    if (counts[cid] > Engine.MAX_COPIES_PER_CARD) {
+      return {
+        ok: false,
+        reason: `同じカードは1デッキに${Engine.MAX_COPIES_PER_CARD}枚までです。`,
+      };
     }
   }
   return { ok: true };
@@ -144,7 +150,18 @@ export function createSkyWayP2P({
       log: [],
       _logSeq: 0,
     };
-    Engine.startGame(game, hostSlot);
+    const startRes = Engine.startGame(game, hostSlot);
+    if (startRes?.winnerIndex !== undefined) {
+      emitGameBoth();
+      broadcastDown({
+        t: "gameOver",
+        winnerSlot: startRes.winnerIndex,
+        reason: "deckOut",
+      });
+      game = null;
+      onGameOver({ winnerSlot: startRes.winnerIndex, reason: "deckOut" });
+      return;
+    }
     emitGameBoth();
   }
 
@@ -227,12 +244,21 @@ export function createSkyWayP2P({
           reportActionError(item.slot, res.reason);
         } else {
           emitted = true;
-          const winner = game.players[0].hp <= 0 ? 1 : game.players[1].hp <= 0 ? 0 : null;
+          const winner =
+            res.winnerIndex ??
+            (game.players[0].hp <= 0 ? 1 : game.players[1].hp <= 0 ? 0 : null);
           if (winner !== null) {
             emitGameBoth();
-            broadcastDown({ t: "gameOver", winnerSlot: winner });
+            broadcastDown({
+              t: "gameOver",
+              winnerSlot: winner,
+              reason: res.winnerIndex != null ? "deckOut" : undefined,
+            });
             game = null;
-            onGameOver({ winnerSlot: winner });
+            onGameOver({
+              winnerSlot: winner,
+              reason: res.winnerIndex != null ? "deckOut" : undefined,
+            });
             continue;
           }
         }

@@ -1,22 +1,30 @@
+<style>table, th, td { white-space: nowrap; }</style>
+
 # カード JSON 記述ガイド（身内語録大戦）
 
 カードは `public/data/cards/{id}.json` に1枚1ファイルで置き、`manifest.json` の `cardIds` に ID を登録します。
 
 ## 必須フィールド
 
-| フィールド | 型 | 説明 |
-|---|---|---|
-| `id` | string | 一意ID（ファイル名と一致させる） |
-| `speaker` | string | 発言者名（例: `"A君"`）。コンボ判定に使用 |
-| `text` | string | 語録テキスト（対戦画面に大きく表示） |
-| `cost` | number | 基本消費コスト（整数） |
-| `effect` | array | メイン効果（下記「効果タイプ」参照） |
+<table>
+<thead><tr><th>フィールド</th><th>型</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>string</td><td>一意ID（ファイル名と一致させる）</td></tr>
+<tr><td><code>speaker</code></td><td>string</td><td>発言者名（例: <code>"A君"</code>）。コンボ判定に使用</td></tr>
+<tr><td><code>text</code></td><td>string</td><td>語録テキスト（対戦画面に大きく表示）</td></tr>
+<tr><td><code>cost</code></td><td>number</td><td>基本消費コスト（整数）</td></tr>
+<tr><td><code>effect</code></td><td>array</td><td>メイン効果（下記「効果タイプ」参照）</td></tr>
+</tbody>
+</table>
 
 ## 任意フィールド
 
-| フィールド | 型 | 説明 |
-|---|---|---|
-| `speaker_effect` | object | 発言者コンボ時の追加・変更効果（下記参照） |
+<table>
+<thead><tr><th>フィールド</th><th>型</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>speaker_effect</code></td><td>object</td><td>発言者コンボ時の追加・変更効果（下記参照）</td></tr>
+</tbody>
+</table>
 
 ## 発言者コンボ（speaker_effect）
 
@@ -36,11 +44,14 @@
 }
 ```
 
-| キー | 説明 |
-|---|---|
-| `cost_reduction` | コンボ時のコスト軽減量（省略時は 1） |
-| `damage_multiplier` | コンボ時のダメージ倍率（`damage` / `damageIf` に適用） |
-| `effects` | コンボ成立時にメイン効果の前に発動する追加効果 |
+<table>
+<thead><tr><th>キー</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>cost_reduction</code></td><td>コンボ時のコスト軽減量（省略時は 1）</td></tr>
+<tr><td><code>damage_multiplier</code></td><td>コンボ時のダメージ倍率（<code>damage</code> / <code>damageIf</code> に適用）</td></tr>
+<tr><td><code>effects</code></td><td>コンボ成立時にメイン効果の前に発動する追加効果</td></tr>
+</tbody>
+</table>
 
 ## 効果タイプ（effect / speaker_effect.effects）
 
@@ -59,7 +70,7 @@
 ```
 
 ### draw
-カードを引く。
+山札からカードを引く（捨て札は山札に戻さない。山札が空なら引けない）。
 
 ```json
 { "type": "draw", "value": 1 }
@@ -86,16 +97,19 @@
 
 条件モード一覧:
 
-| mode | 意味 |
-|---|---|
-| `opponentHandGte` | 相手手札 ≥ threshold |
-| `selfHandGte` | 自身手札 ≥ threshold |
-| `opponentHandLte` | 相手手札 ≤ threshold |
-| `selfHpLte` | 自身HP ≤ threshold |
-| `opponentHpGte` | 相手HP ≥ threshold |
-| `opponentHpLte` | 相手HP ≤ threshold |
-| `selfLastSpeakerIs` | 直前の自身プレイの発言者が `speaker` と一致 |
-| `opponentLastSpeakerIs` | 直前の相手プレイの発言者が `speaker` と一致 |
+<table>
+<thead><tr><th>mode</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td><code>opponentHandGte</code></td><td>相手手札 ≥ threshold</td></tr>
+<tr><td><code>selfHandGte</code></td><td>自身手札 ≥ threshold</td></tr>
+<tr><td><code>opponentHandLte</code></td><td>相手手札 ≤ threshold</td></tr>
+<tr><td><code>selfHpLte</code></td><td>自身HP ≤ threshold</td></tr>
+<tr><td><code>opponentHpGte</code></td><td>相手HP ≥ threshold</td></tr>
+<tr><td><code>opponentHpLte</code></td><td>相手HP ≤ threshold</td></tr>
+<tr><td><code>selfLastSpeakerIs</code></td><td>直前の自身プレイの発言者が <code>speaker</code> と一致</td></tr>
+<tr><td><code>opponentLastSpeakerIs</code></td><td>直前の相手プレイの発言者が <code>speaker</code> と一致</td></tr>
+</tbody>
+</table>
 
 ## 記述例
 
@@ -113,4 +127,6 @@
 
 ## 初期デッキ
 
-`public/data/initial-deck.json` に20枚分の ID 配列を記述します（同一カード最大2枚）。
+`public/data/initial-deck.json` に40枚分の ID 配列を記述します（同一カード最大4枚）。
+
+進捗管理は `CARD_LIST.md` を参照してください。
