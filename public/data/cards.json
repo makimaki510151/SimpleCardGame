@@ -3,7 +3,8 @@
   "toneKeys": {
     "passion": "熱量",
     "logical": "冷徹",
-    "chaos": "泥沼"
+    "chaos": "泥沼",
+    "habit": "口癖"
   },
   "statusKeys": {
     "tsubo": "ツボ",
@@ -17,7 +18,7 @@
       "speaker": "A君",
       "cost": 1,
       "text": "またそれ言うの！？",
-      "tone": "passion",
+      "tone": "habit",
       "effect": [{ "type": "damage", "value": 1 }],
       "speaker_effect": { "effects": [{ "type": "draw", "value": 1 }] },
       "effect_note": "相手1ダメージ",

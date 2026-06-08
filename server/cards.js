@@ -17,7 +17,7 @@ const EFFECT_TYPES = new Set([
 ]);
 
 const STATUS_TYPES = new Set(["tsubo", "hiyori", "mute"]);
-const TONE_TYPES = new Set(["passion", "logical", "chaos"]);
+const TONE_TYPES = new Set(["passion", "logical", "chaos", "habit"]);
 
 function validateEffectsList(effects, fileId, ctx) {
   for (const e of effects) {
@@ -49,7 +49,9 @@ function validateCardShape(card, fileId) {
     throw new Error(`Card ${fileId}: cost must be a non-negative number`);
   }
   if (!TONE_TYPES.has(card.tone)) {
-    throw new Error(`Card ${fileId}: tone must be passion, logical, or chaos`);
+    throw new Error(
+      `Card ${fileId}: tone must be passion, logical, chaos, or habit`
+    );
   }
   const effects = card.effect || card.effects;
   if (!Array.isArray(effects)) {

@@ -24,12 +24,14 @@ export const TONE = {
   PASSION: "passion",
   LOGICAL: "logical",
   CHAOS: "chaos",
+  HABIT: "habit",
 };
 
 export const TONE_LABEL = {
   passion: "熱量",
   logical: "冷徹",
   chaos: "泥沼",
+  habit: "口癖",
 };
 
 /** 状態異常 */
@@ -243,21 +245,47 @@ function publicStatuses(p) {
   };
 }
 
+function describeIfClause(e) {
+  const th = e.threshold | 0;
+  switch (e.mode) {
+    case "opponentHandGte":
+      return `相手手札${th}枚以上`;
+    case "selfHandGte":
+      return `自身手札${th}枚以上`;
+    case "opponentHandLte":
+      return `相手手札${th}枚以下`;
+    case "selfHpLte":
+      return `自身HP${th}以下`;
+    case "opponentHpGte":
+      return `相手HP${th}以上`;
+    case "opponentHpLte":
+      return `相手HP${th}以下`;
+    case "selfLastSpeakerIs":
+      return `直前が「${e.speaker || "?"}」`;
+    case "opponentLastSpeakerIs":
+      return `相手直前が「${e.speaker || "?"}」`;
+    default:
+      return "？";
+  }
+}
+
 function describeEffectLine(e) {
   const v = e.value | 0;
   switch (e.type) {
     case "damage":
       return `相手に${v}ダメージ`;
     case "damageIf":
-      return `条件で相手に${v}ダメージ`;
+      return `${describeIfClause(e)}で相手に${v}ダメージ`;
     case "heal":
       return `自身回復${v}`;
     case "healIf":
-      return `条件で自身回復${v}`;
+      return `${describeIfClause(e)}で自身回復${v}`;
     case "draw":
       return `ドロー${v}`;
     case "discardSelf":
       return `自身手札ランダム廃棄${v}`;
+    case "damageSelf":
+      return `自身に${v}ダメージ`;
     case "statusOpponent":
       return `相手に${STATUS_LABEL[e.status] || e.status}${e.turns | 0}T`;
     case "statusSelf":

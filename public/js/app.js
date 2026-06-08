@@ -69,8 +69,32 @@ async function disposeSkyWay() {
   skywaySession = null;
 }
 
-const TONE_LABEL = { passion: "熱量", logical: "冷徹", chaos: "泥沼" };
+const TONE_LABEL = {
+  passion: "熱量",
+  logical: "冷徹",
+  chaos: "泥沼",
+  habit: "口癖",
+};
 const STATUS_LABEL = { tsubo: "ツボ", hiyori: "日和", mute: "ミュート" };
+
+const TONE_HELP = {
+  passion: "勢い・怒り・大爆笑。攻撃やラッシュ向き。",
+  logical: "マジレス・正論・呆れ。妨害やコントロール向き。",
+  chaos: "言い訳・意味不明・深夜ノリ。回復やトリッキーな動き向き。",
+  habit: "繰り返しの決まり文句。同じ発言者の連鎖と相性が良い。",
+};
+
+const STATUS_HELP = {
+  tsubo: "ツボ（爆笑）: 付与中、カードを使うたびにライフが1減る。",
+  hiyori: "日和: 付与中、【熱量】属性のカードが使えない。",
+  mute: "ミュート: 次の自分ターン、発言者コンボ（コスト軽減など）が発動しない。",
+};
+
+const EFFECT_HELP = {
+  combo: "直前にプレイしたカードと同じ発言者なら、コスト軽減などの追加効果。",
+  damage_multiplier: "発言者コンボ成立時、ダメージが倍になる。",
+  cost_reduction: "発言者コンボ成立時、コストが下がる。",
+};
 
 function cardEffectList(card) {
   return card?.effect || card?.effects || [];
@@ -93,28 +117,125 @@ function effectivePlayCost(card, lastPlayedSpeaker, mutedThisTurn) {
   return Math.max(0, base - reduction);
 }
 
-function describeEffectShort(e) {
+function describeIfClause(e) {
+  const th = e.threshold | 0;
+  switch (e.mode) {
+    case "opponentHandGte":
+      return `相手手札${th}枚以上`;
+    case "selfHandGte":
+      return `自身手札${th}枚以上`;
+    case "opponentHandLte":
+      return `相手手札${th}枚以下`;
+    case "selfHpLte":
+      return `自身HP${th}以下`;
+    case "opponentHpGte":
+      return `相手HP${th}以上`;
+    case "opponentHpLte":
+      return `相手HP${th}以下`;
+    case "selfLastSpeakerIs":
+      return `直前「${e.speaker || "?"}」`;
+    case "opponentLastSpeakerIs":
+      return `相手直前「${e.speaker || "?"}」`;
+    default:
+      return "？";
+  }
+}
+
+/** @returns {{ text: string, tooltip: string|null, met?: boolean }} */
+function formatEffectToken(e, duelCtx) {
   const v = e.value | 0;
   switch (e.type) {
     case "damage":
-      return `相手${v}ダメ`;
+      return { text: `相手${v}ダメ`, tooltip: null };
     case "heal":
-      return `回復${v}`;
+      return { text: `回復${v}`, tooltip: null };
     case "draw":
-      return `ドロー${v}`;
+      return { text: `ドロー${v}`, tooltip: null };
     case "discardSelf":
-      return `手札捨${v}`;
-    case "damageIf":
-      return `条件${v}ダメ`;
-    case "healIf":
-      return `条件回復${v}`;
-    case "statusOpponent":
-      return `相手${STATUS_LABEL[e.status] || e.status}${e.turns | 0}T`;
-    case "statusSelf":
-      return `自身${STATUS_LABEL[e.status] || e.status}${e.turns | 0}T`;
+      return { text: `手札捨${v}`, tooltip: null };
+    case "damageSelf":
+      return { text: `自身${v}ダメ`, tooltip: null };
+    case "damageIf": {
+      const met =
+        duelCtx?.state &&
+        evalIfEffectForActor(e, duelCtx.state, duelCtx.actorSlot);
+      const suffix =
+        met === true ? " ✓" : met === false ? " ×" : "";
+      return {
+        text: `${describeIfClause(e)}→${v}ダメ${suffix}`,
+        tooltip: null,
+        met,
+      };
+    }
+    case "healIf": {
+      const met =
+        duelCtx?.state &&
+        evalIfEffectForActor(e, duelCtx.state, duelCtx.actorSlot);
+      const suffix =
+        met === true ? " ✓" : met === false ? " ×" : "";
+      return {
+        text: `${describeIfClause(e)}→回復${v}${suffix}`,
+        tooltip: null,
+        met,
+      };
+    }
+    case "statusOpponent": {
+      const st = e.status;
+      const turns = e.turns | 0;
+      const label = STATUS_LABEL[st] || st;
+      return {
+        text: `相手に${label}${turns > 0 ? `${turns}T` : ""}`,
+        tooltip: STATUS_HELP[st] || null,
+      };
+    }
+    case "statusSelf": {
+      const st = e.status;
+      const turns = e.turns | 0;
+      const label = STATUS_LABEL[st] || st;
+      return {
+        text: `自身に${label}${turns > 0 ? `${turns}T` : ""}`,
+        tooltip: STATUS_HELP[st] || null,
+      };
+    }
     default:
-      return e.type || "";
+      return { text: e.type || "", tooltip: null };
   }
+}
+
+function describeEffectShort(e) {
+  return formatEffectToken(e, null).text;
+}
+
+function appendHintSpan(parent, text, tooltip, extraClass) {
+  const span = document.createElement("span");
+  span.className = "card-effect-token";
+  if (extraClass) span.classList.add(extraClass);
+  span.textContent = text;
+  if (tooltip) {
+    span.classList.add("card-effect-token--hint");
+    span.title = tooltip;
+  }
+  parent.appendChild(span);
+}
+
+function appendEffectTokens(container, effects, duelCtx) {
+  if (!effects?.length) return;
+  const fx = document.createElement("div");
+  fx.className = "card-effect-line";
+  effects.forEach((e, i) => {
+    if (i > 0) {
+      const sep = document.createElement("span");
+      sep.className = "card-effect-sep";
+      sep.textContent = " · ";
+      fx.appendChild(sep);
+    }
+    const tok = formatEffectToken(e, duelCtx);
+    let extra = null;
+    if (tok.met === true) extra = "card-effect-token--met";
+    else if (tok.met === false) extra = "card-effect-token--unmet";
+    appendHintSpan(fx, tok.text, tok.tooltip, extra);
+  });
+  container.appendChild(fx);
 }
 
 function appendToneRow(container, card) {
@@ -125,7 +246,11 @@ function appendToneRow(container, card) {
   const chip = document.createElement("span");
   chip.className = `card-tone card-tone--${t}`;
   chip.textContent = TONE_LABEL[t] || t;
-  chip.title = TONE_LABEL[t] || t;
+  const tip = TONE_HELP[t];
+  if (tip) {
+    chip.classList.add("card-effect-token--hint");
+    chip.title = tip;
+  }
   row.appendChild(chip);
   container.appendChild(row);
 }
@@ -362,36 +487,47 @@ function renderCardBody(container, card, duelCtx) {
   container.appendChild(quote);
   appendToneRow(container, card);
 
-  const eff = cardEffectList(card);
-  if (eff.length) {
-    const fx = document.createElement("div");
-    fx.className = "card-effect-line";
-    const parts = eff.map((e) => {
-      if (e.type === "damageIf" || e.type === "healIf") {
-        const met =
-          duelCtx?.state &&
-          evalIfEffectForActor(e, duelCtx.state, duelCtx.actorSlot);
-        return `${describeEffectShort(e)}${met === true ? "✓" : met === false ? "×" : ""}`;
-      }
-      return describeEffectShort(e);
-    });
-    fx.textContent = parts.join(" · ");
-    container.appendChild(fx);
-  }
+  appendEffectTokens(container, cardEffectList(card), duelCtx);
 
   if (card.speaker_effect) {
     const combo = document.createElement("div");
     combo.className = "card-combo-hint";
-    const bits = ["コンボ"];
-    if (card.speaker_effect.damage_multiplier > 1) {
-      bits.push(`ダメ×${card.speaker_effect.damage_multiplier}`);
-    }
-    if (card.speaker_effect.effects?.length) {
-      bits.push(
-        card.speaker_effect.effects.map(describeEffectShort).join("·")
+    appendHintSpan(combo, "コンボ", EFFECT_HELP.combo, null);
+    const se = card.speaker_effect;
+    if (se.damage_multiplier > 1) {
+      const sep = document.createElement("span");
+      sep.className = "card-effect-sep";
+      sep.textContent = " ";
+      combo.appendChild(sep);
+      appendHintSpan(
+        combo,
+        `ダメ×${se.damage_multiplier}`,
+        EFFECT_HELP.damage_multiplier,
+        null
       );
     }
-    combo.textContent = bits.join(" ");
+    if (se.cost_reduction != null && se.cost_reduction !== 1) {
+      const sep = document.createElement("span");
+      sep.className = "card-effect-sep";
+      sep.textContent = " ";
+      combo.appendChild(sep);
+      appendHintSpan(
+        combo,
+        `コスト-${se.cost_reduction}`,
+        EFFECT_HELP.cost_reduction,
+        null
+      );
+    }
+    if (se.effects?.length) {
+      se.effects.forEach((e) => {
+        const sep = document.createElement("span");
+        sep.className = "card-effect-sep";
+        sep.textContent = " ";
+        combo.appendChild(sep);
+        const tok = formatEffectToken(e, duelCtx);
+        appendHintSpan(combo, tok.text, tok.tooltip, null);
+      });
+    }
     container.appendChild(combo);
   }
 }

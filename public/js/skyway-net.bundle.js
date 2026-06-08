@@ -55581,7 +55581,8 @@ var SECOND_PLAYER_INITIAL_MAX = 4;
 var TONE = {
   PASSION: "passion",
   LOGICAL: "logical",
-  CHAOS: "chaos"
+  CHAOS: "chaos",
+  HABIT: "habit"
 };
 var STATUS = {
   TSUBO: "tsubo",
@@ -55768,21 +55769,46 @@ function publicStatuses(p) {
     pendingMute: !!st.pendingMute
   };
 }
+function describeIfClause(e2) {
+  const th = e2.threshold | 0;
+  switch (e2.mode) {
+    case "opponentHandGte":
+      return `\u76F8\u624B\u624B\u672D${th}\u679A\u4EE5\u4E0A`;
+    case "selfHandGte":
+      return `\u81EA\u8EAB\u624B\u672D${th}\u679A\u4EE5\u4E0A`;
+    case "opponentHandLte":
+      return `\u76F8\u624B\u624B\u672D${th}\u679A\u4EE5\u4E0B`;
+    case "selfHpLte":
+      return `\u81EA\u8EABHP${th}\u4EE5\u4E0B`;
+    case "opponentHpGte":
+      return `\u76F8\u624BHP${th}\u4EE5\u4E0A`;
+    case "opponentHpLte":
+      return `\u76F8\u624BHP${th}\u4EE5\u4E0B`;
+    case "selfLastSpeakerIs":
+      return `\u76F4\u524D\u304C\u300C${e2.speaker || "?"}\u300D`;
+    case "opponentLastSpeakerIs":
+      return `\u76F8\u624B\u76F4\u524D\u304C\u300C${e2.speaker || "?"}\u300D`;
+    default:
+      return "\uFF1F";
+  }
+}
 function describeEffectLine(e2) {
   const v = e2.value | 0;
   switch (e2.type) {
     case "damage":
       return `\u76F8\u624B\u306B${v}\u30C0\u30E1\u30FC\u30B8`;
     case "damageIf":
-      return `\u6761\u4EF6\u3067\u76F8\u624B\u306B${v}\u30C0\u30E1\u30FC\u30B8`;
+      return `${describeIfClause(e2)}\u3067\u76F8\u624B\u306B${v}\u30C0\u30E1\u30FC\u30B8`;
     case "heal":
       return `\u81EA\u8EAB\u56DE\u5FA9${v}`;
     case "healIf":
-      return `\u6761\u4EF6\u3067\u81EA\u8EAB\u56DE\u5FA9${v}`;
+      return `${describeIfClause(e2)}\u3067\u81EA\u8EAB\u56DE\u5FA9${v}`;
     case "draw":
       return `\u30C9\u30ED\u30FC${v}`;
     case "discardSelf":
       return `\u81EA\u8EAB\u624B\u672D\u30E9\u30F3\u30C0\u30E0\u5EC3\u68C4${v}`;
+    case "damageSelf":
+      return `\u81EA\u8EAB\u306B${v}\u30C0\u30E1\u30FC\u30B8`;
     case "statusOpponent":
       return `\u76F8\u624B\u306B${STATUS_LABEL[e2.status] || e2.status}${e2.turns | 0}T`;
     case "statusSelf":

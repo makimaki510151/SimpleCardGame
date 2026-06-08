@@ -1,5 +1,7 @@
 # カードデータ記述ガイド（身内語録大戦）
 
+カード効果の**依頼・設計**は [README.md](./README.md) を参照してください。
+
 **すべてのカード定義は `public/data/cards.json` の1ファイルにまとめます。**
 
 ## cards.json の構造
@@ -7,7 +9,7 @@
 ```json
 {
   "version": 2,
-  "toneKeys": { "passion": "熱量", "logical": "冷徹", "chaos": "泥沼" },
+  "toneKeys": { "passion": "熱量", "logical": "冷徹", "chaos": "泥沼", "habit": "口癖" },
   "statusKeys": { "tsubo": "ツボ", "hiyori": "日和", "mute": "ミュート" },
   "cards": [ ... ]
 }
@@ -22,7 +24,7 @@
 | `speaker` | ○ | 発言者名 |
 | `cost` | ○ | 消費コスト |
 | `text` | ○ | 語録テキスト |
-| `tone` | ○ | 発言トーン1つ（`passion` / `logical` / `chaos`） |
+| `tone` | ○ | 発言トーン1つ（`passion` / `logical` / `chaos` / `habit`） |
 | `effect` | ○ | ゲーム効果の配列 |
 | `speaker_effect` | — | 発言者コンボ時の追加効果 |
 | `effect_note` | — | 人間向け効果メモ |
@@ -38,6 +40,7 @@
 | `passion` | 熱量 |
 | `logical` | 冷徹 |
 | `chaos` | 泥沼 |
+| `habit` | 口癖 |
 
 ## 効果タイプ
 

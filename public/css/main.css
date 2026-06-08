@@ -449,6 +449,29 @@ h3 {
   background: rgba(160, 80, 255, 0.18);
 }
 
+.card-tone--habit {
+  color: #ffe08a;
+  background: rgba(220, 170, 40, 0.2);
+}
+
+.card-effect-token--hint {
+  cursor: help;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.35);
+}
+
+.card-effect-token--met {
+  color: #9be89b;
+}
+
+.card-effect-token--unmet {
+  color: #888;
+  opacity: 0.75;
+}
+
+.card-effect-sep {
+  opacity: 0.55;
+}
+
 .card-face.card-hiyori-blocked {
   opacity: 0.45;
   filter: grayscale(0.35);
