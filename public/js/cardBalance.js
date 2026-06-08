@@ -48,6 +48,16 @@
       }
     }
 
+    const hasComboBonus =
+      !!se &&
+      (se.effects?.length > 0 ||
+        se.post_effects?.length > 0 ||
+        se.damage_multiplier != null ||
+        se.damage_multiplier_if != null ||
+        se.negate_self_damage ||
+        se.negate_self_discard ||
+        se.set_next_speaker_damage_buff);
+
     return {
       cost: card.cost | 0,
       dmg,
@@ -56,7 +66,19 @@
       selfDisc,
       oppDisc: 0,
       oppCostCapDrop: 0,
-      hasIf: eff.some((e) => e.type === "damageIf" || e.type === "healIf"),
+      hasIf:
+        eff.some(
+          (e) =>
+            e.type === "damageIf" ||
+            e.type === "healIf" ||
+            e.type === "drawIf" ||
+            e.type === "damageSelfIf" ||
+            e.type === "statusOpponentIf" ||
+            e.type === "statusSelfIf" ||
+            e.type === "discardAllSelf" ||
+            e.type === "damageFromHpDiff" ||
+            e.type === "damageFromOpponentHandIf"
+        ) || hasComboBonus,
     };
   }
 

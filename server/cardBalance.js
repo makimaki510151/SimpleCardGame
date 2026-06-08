@@ -53,6 +53,7 @@ function aggregateForDominance(card) {
   const hasComboBonus =
     !!se &&
     (se.effects?.length > 0 ||
+      se.post_effects?.length > 0 ||
       se.damage_multiplier != null ||
       se.damage_multiplier_if != null ||
       se.negate_self_damage ||
