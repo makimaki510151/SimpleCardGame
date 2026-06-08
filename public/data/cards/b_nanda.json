@@ -1,7 +1,0 @@
-{
-  "id": "b_nanda",
-  "speaker": "B君",
-  "text": "なんだそれ",
-  "cost": 1,
-  "effect": [{ "type": "damage", "value": 2 }]
-}

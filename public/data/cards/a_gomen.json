@@ -1,7 +1,0 @@
-{
-  "id": "a_gomen",
-  "speaker": "A君",
-  "text": "ごめん、マジで",
-  "cost": 2,
-  "effect": [{ "type": "heal", "value": 3 }]
-}

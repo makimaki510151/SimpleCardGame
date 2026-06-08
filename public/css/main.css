@@ -418,6 +418,54 @@ h3 {
   color: #c9a0ff;
 }
 
+.card-tones {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.2rem;
+  margin: 0.2rem 0 0.35rem;
+}
+
+.card-tone {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.08rem 0.28rem;
+  border-radius: 0.2rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.card-tone--passion {
+  color: #ffb4a2;
+  background: rgba(255, 100, 60, 0.18);
+}
+
+.card-tone--logical {
+  color: #9ed4ff;
+  background: rgba(60, 140, 255, 0.18);
+}
+
+.card-tone--chaos {
+  color: #d4b8ff;
+  background: rgba(160, 80, 255, 0.18);
+}
+
+.card-face.card-hiyori-blocked {
+  opacity: 0.45;
+  filter: grayscale(0.35);
+}
+
+.duel-fx-line--tsubo {
+  color: #ffb86c;
+}
+
+.duel-fx-line--hiyori {
+  color: #79b8ff;
+}
+
+.duel-fx-line--mute {
+  color: #c9a0ff;
+}
+
 .card-cost--reduced {
   color: #b8e986;
 }

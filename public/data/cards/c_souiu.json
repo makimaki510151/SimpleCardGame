@@ -1,7 +1,0 @@
-{
-  "id": "c_souiu",
-  "speaker": "C君",
-  "text": "そういうこと言うな",
-  "cost": 2,
-  "effect": [{ "type": "damage", "value": 3 }]
-}

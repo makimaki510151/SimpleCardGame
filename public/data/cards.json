@@ -1,0 +1,205 @@
+{
+  "version": 2,
+  "toneKeys": {
+    "passion": "熱量",
+    "logical": "冷徹",
+    "chaos": "泥沼"
+  },
+  "statusKeys": {
+    "tsubo": "ツボ",
+    "hiyori": "日和",
+    "mute": "ミュート"
+  },
+  "cards": [
+    {
+      "order": 1,
+      "id": "a_mata_ka",
+      "speaker": "A君",
+      "cost": 1,
+      "text": "またそれ言うの！？",
+      "tone": "passion",
+      "effect": [{ "type": "damage", "value": 1 }],
+      "speaker_effect": { "effects": [{ "type": "draw", "value": 1 }] },
+      "effect_note": "相手1ダメージ",
+      "combo_note": "ドロー1",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 2,
+      "id": "a_urusai",
+      "speaker": "A君",
+      "cost": 3,
+      "text": "うるせぇ！黙れ！",
+      "tone": "passion",
+      "effect": [{ "type": "damage", "value": 4 }],
+      "speaker_effect": { "cost_reduction": 1, "damage_multiplier": 2 },
+      "effect_note": "相手4ダメージ",
+      "combo_note": "コスト-1・ダメ×2",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 3,
+      "id": "a_gomen",
+      "speaker": "A君",
+      "cost": 2,
+      "text": "ごめん、マジで",
+      "tone": "chaos",
+      "effect": [
+        { "type": "heal", "value": 3 },
+        { "type": "statusOpponent", "status": "mute", "turns": 1 }
+      ],
+      "effect_note": "自身回復3・相手にミュート",
+      "combo_note": "コスト-1（標準）",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 4,
+      "id": "a_chain",
+      "speaker": "A君",
+      "cost": 2,
+      "text": "だから言ったじゃん",
+      "tone": "logical",
+      "effect": [{ "type": "damage", "value": 2 }],
+      "speaker_effect": { "effects": [{ "type": "draw", "value": 1 }] },
+      "effect_note": "相手2ダメージ",
+      "combo_note": "ドロー1",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 5,
+      "id": "b_nanda",
+      "speaker": "B君",
+      "cost": 1,
+      "text": "なんだそれ",
+      "tone": "logical",
+      "effect": [{ "type": "damage", "value": 2 }],
+      "effect_note": "相手2ダメージ",
+      "combo_note": "コスト-1（標準）",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 6,
+      "id": "b_yabe",
+      "speaker": "B君",
+      "cost": 2,
+      "text": "やべぇやべぇ",
+      "tone": "chaos",
+      "effect": [
+        { "type": "damage", "value": 2 },
+        { "type": "draw", "value": 1 },
+        { "type": "statusOpponent", "status": "tsubo", "turns": 2 }
+      ],
+      "effect_note": "相手2ダメージ・ドロー1・相手にツボ2T",
+      "combo_note": "コスト-1（標準）",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 7,
+      "id": "b_finisher",
+      "speaker": "B君",
+      "cost": 5,
+      "text": "終わったな",
+      "tone": "passion",
+      "effect": [
+        {
+          "type": "damageIf",
+          "mode": "opponentHpLte",
+          "threshold": 10,
+          "value": 6
+        },
+        { "type": "damage", "value": 3 }
+      ],
+      "effect_note": "相手HP10以下で6ダメ＋相手3ダメージ",
+      "combo_note": "コスト-1（標準）",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 8,
+      "id": "b_chain",
+      "speaker": "B君",
+      "cost": 2,
+      "text": "マ？マジで？",
+      "tone": "chaos",
+      "effect": [{ "type": "damage", "value": 3 }],
+      "speaker_effect": { "cost_reduction": 2 },
+      "effect_note": "相手3ダメージ",
+      "combo_note": "コスト-2",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 9,
+      "id": "c_shiran",
+      "speaker": "C君",
+      "cost": 0,
+      "text": "知らんがな",
+      "tone": "logical",
+      "effect": [{ "type": "damage", "value": 1 }],
+      "effect_note": "相手1ダメージ",
+      "combo_note": "コスト-1（標準）",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 10,
+      "id": "c_warota",
+      "speaker": "C君",
+      "cost": 1,
+      "text": "ワロタ",
+      "tone": "chaos",
+      "effect": [
+        { "type": "heal", "value": 2 },
+        { "type": "statusOpponent", "status": "hiyori", "turns": 2 }
+      ],
+      "effect_note": "自身回復2・相手に日和2T",
+      "combo_note": "コスト-1（標準）",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 11,
+      "id": "c_souiu",
+      "speaker": "C君",
+      "cost": 2,
+      "text": "そういうこと言うな",
+      "tone": "logical",
+      "effect": [{ "type": "damage", "value": 3 }],
+      "effect_note": "相手3ダメージ",
+      "combo_note": "コスト-1（標準）",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    },
+    {
+      "order": 12,
+      "id": "common_ikiri",
+      "speaker": "部長",
+      "cost": 1,
+      "text": "空気読め",
+      "tone": "logical",
+      "effect": [{ "type": "damage", "value": 2 }],
+      "effect_note": "相手2ダメージ",
+      "combo_note": "コスト-1（標準）",
+      "implemented": true,
+      "bug_free": false,
+      "excluded": false
+    }
+  ]
+}

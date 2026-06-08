@@ -2,7 +2,8 @@ const fs = require("fs");
 const path = require("path");
 const { assertNoStrictDominance } = require("./cardBalance");
 
-const CARDS_DIR = path.join(__dirname, "..", "public", "data", "cards");
+const DATA_DIR = path.join(__dirname, "..", "public", "data");
+const CARDS_FILE = path.join(DATA_DIR, "cards.json");
 
 const EFFECT_TYPES = new Set([
   "damage",
@@ -11,14 +12,32 @@ const EFFECT_TYPES = new Set([
   "discardSelf",
   "damageIf",
   "healIf",
+  "statusOpponent",
+  "statusSelf",
 ]);
+
+const STATUS_TYPES = new Set(["tsubo", "hiyori", "mute"]);
+const TONE_TYPES = new Set(["passion", "logical", "chaos"]);
+
+function validateEffectsList(effects, fileId, ctx) {
+  for (const e of effects) {
+    if (!e || typeof e.type !== "string" || !EFFECT_TYPES.has(e.type)) {
+      throw new Error(`Card ${fileId}: unknown ${ctx} type ${e?.type}`);
+    }
+    if (e.type === "statusOpponent" || e.type === "statusSelf") {
+      if (!STATUS_TYPES.has(e.status)) {
+        throw new Error(`Card ${fileId}: unknown status ${e.status}`);
+      }
+    }
+  }
+}
 
 function validateCardShape(card, fileId) {
   if (!card || typeof card !== "object") {
     throw new Error(`Invalid card: ${fileId}`);
   }
   if (card.id !== fileId) {
-    throw new Error(`Card id mismatch: file ${fileId}.json has id ${card.id}`);
+    throw new Error(`Card id mismatch: ${fileId}`);
   }
   if (typeof card.speaker !== "string" || !card.speaker.trim()) {
     throw new Error(`Card ${fileId}: speaker is required`);
@@ -29,15 +48,14 @@ function validateCardShape(card, fileId) {
   if (typeof card.cost !== "number" || card.cost < 0) {
     throw new Error(`Card ${fileId}: cost must be a non-negative number`);
   }
+  if (!TONE_TYPES.has(card.tone)) {
+    throw new Error(`Card ${fileId}: tone must be passion, logical, or chaos`);
+  }
   const effects = card.effect || card.effects;
   if (!Array.isArray(effects)) {
     throw new Error(`Card ${fileId}: effect must be an array`);
   }
-  for (const e of effects) {
-    if (!e || typeof e.type !== "string" || !EFFECT_TYPES.has(e.type)) {
-      throw new Error(`Card ${fileId}: unknown effect type ${e?.type}`);
-    }
-  }
+  validateEffectsList(effects, fileId, "effect");
   if (card.speaker_effect != null) {
     const se = card.speaker_effect;
     if (typeof se !== "object") {
@@ -47,28 +65,43 @@ function validateCardShape(card, fileId) {
       if (!Array.isArray(se.effects)) {
         throw new Error(`Card ${fileId}: speaker_effect.effects must be an array`);
       }
-      for (const e of se.effects) {
-        if (!e || typeof e.type !== "string" || !EFFECT_TYPES.has(e.type)) {
-          throw new Error(`Card ${fileId}: unknown speaker_effect type ${e?.type}`);
-        }
-      }
+      validateEffectsList(se.effects, fileId, "speaker_effect");
     }
   }
 }
 
+function toGameCard(row) {
+  return {
+    id: row.id,
+    speaker: row.speaker,
+    text: row.text,
+    cost: row.cost,
+    tone: row.tone,
+    effect: row.effect || row.effects || [],
+    speaker_effect: row.speaker_effect,
+  };
+}
+
+function loadCardsFile() {
+  return JSON.parse(fs.readFileSync(CARDS_FILE, "utf8"));
+}
+
 function loadCardCatalog() {
-  const manifestPath = path.join(CARDS_DIR, "manifest.json");
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const data = loadCardsFile();
   const byId = {};
-  for (const id of manifest.cardIds) {
-    if (id.startsWith("_")) continue;
-    const filePath = path.join(CARDS_DIR, `${id}.json`);
-    const card = JSON.parse(fs.readFileSync(filePath, "utf8"));
-    validateCardShape(card, id);
-    byId[id] = card;
+  const cardIds = [];
+  for (const row of data.cards || []) {
+    if (row.excluded || !row.implemented) continue;
+    validateCardShape(row, row.id);
+    byId[row.id] = toGameCard(row);
+    cardIds.push(row.id);
   }
   assertNoStrictDominance(byId);
-  return { manifest, byId };
+  return {
+    manifest: { cardIds },
+    byId,
+    registry: data,
+  };
 }
 
 const DECK_SIZE = 40;
@@ -105,9 +138,10 @@ function shuffle(array) {
 
 module.exports = {
   loadCardCatalog,
+  loadCardsFile,
   validateDeck,
   shuffle,
-  CARDS_DIR,
+  CARDS_FILE,
   DECK_SIZE,
   MAX_COPIES_PER_CARD,
 };

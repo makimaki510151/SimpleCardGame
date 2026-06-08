@@ -69,12 +69,20 @@ async function disposeSkyWay() {
   skywaySession = null;
 }
 
+const TONE_LABEL = { passion: "熱量", logical: "冷徹", chaos: "泥沼" };
+const STATUS_LABEL = { tsubo: "ツボ", hiyori: "日和", mute: "ミュート" };
+
 function cardEffectList(card) {
   return card?.effect || card?.effects || [];
 }
 
-function effectivePlayCost(card, lastPlayedSpeaker) {
+function cardHasTone(card, tone) {
+  return card?.tone === tone;
+}
+
+function effectivePlayCost(card, lastPlayedSpeaker, mutedThisTurn) {
   const base = card.cost | 0;
+  if (mutedThisTurn) return base;
   const speaker = card.speaker;
   if (!speaker || !lastPlayedSpeaker || speaker !== lastPlayedSpeaker) {
     return base;
@@ -100,9 +108,26 @@ function describeEffectShort(e) {
       return `条件${v}ダメ`;
     case "healIf":
       return `条件回復${v}`;
+    case "statusOpponent":
+      return `相手${STATUS_LABEL[e.status] || e.status}${e.turns | 0}T`;
+    case "statusSelf":
+      return `自身${STATUS_LABEL[e.status] || e.status}${e.turns | 0}T`;
     default:
       return e.type || "";
   }
+}
+
+function appendToneRow(container, card) {
+  const t = card?.tone;
+  if (!t) return;
+  const row = document.createElement("div");
+  row.className = "card-tones";
+  const chip = document.createElement("span");
+  chip.className = `card-tone card-tone--${t}`;
+  chip.textContent = TONE_LABEL[t] || t;
+  chip.title = TONE_LABEL[t] || t;
+  row.appendChild(chip);
+  container.appendChild(row);
 }
 
 function playCardAction(handIndex, discardPicks) {
@@ -215,7 +240,8 @@ function evalIfEffectForActor(effect, state, actorSlot) {
   }
 }
 
-function speakerComboReady(card, lastPlayedSpeaker) {
+function speakerComboReady(card, lastPlayedSpeaker, mutedThisTurn) {
+  if (mutedThisTurn) return false;
   return (
     !!card?.speaker &&
     lastPlayedSpeaker != null &&
@@ -334,6 +360,7 @@ function renderCardBody(container, card, duelCtx) {
   quote.className = "card-quote";
   quote.textContent = card.text || card.name || card.id || "";
   container.appendChild(quote);
+  appendToneRow(container, card);
 
   const eff = cardEffectList(card);
   if (eff.length) {
@@ -374,11 +401,11 @@ function makeCardFace(card, { wide, duelCtx } = {}) {
   root.className = wide ? "card-face wide" : "card-face";
   if (card?.id) root.dataset.cardId = card.id;
 
-  const lastSp =
-    duelCtx?.actorSlot === duelCtx?.state?.youAre
-      ? duelCtx?.state?.you?.lastPlayedSpeaker
-      : duelCtx?.state?.opponent?.lastPlayedSpeaker;
-  if (speakerComboReady(card, lastSp)) {
+  const isYou = duelCtx?.actorSlot === duelCtx?.state?.youAre;
+  const actor = isYou ? duelCtx?.state?.you : duelCtx?.state?.opponent;
+  const lastSp = actor?.lastPlayedSpeaker;
+  const muted = !!actor?.statuses?.mutedThisTurn;
+  if (speakerComboReady(card, lastSp, muted)) {
     root.classList.add("card-combo-ready");
   }
 
@@ -396,7 +423,7 @@ function makeCardFace(card, { wide, duelCtx } = {}) {
   cost.className = "card-cost";
   const displayCost =
     duelCtx?.state != null
-      ? effectivePlayCost(card, lastSp)
+      ? effectivePlayCost(card, lastSp, muted)
       : Math.min(10, Math.max(0, card.cost | 0));
   cost.textContent = String(displayCost);
   if (displayCost < (card.cost | 0)) {
@@ -810,44 +837,41 @@ function fillStatusRail(bodyEl, rows) {
   }
 }
 
+function statusRowsFromPlayer(pl, extraRows) {
+  const rows = extraRows ? extraRows.slice() : [];
+  const st = pl?.statuses || {};
+  if (st.mutedThisTurn) {
+    rows.push({ kind: "mute", text: "ミュート（コンボ無効）", strong: true });
+  } else if (st.pendingMute) {
+    rows.push({ kind: "mute", text: "次ターン・ミュート予約" });
+  }
+  if ((st.tsubo | 0) > 0) {
+    rows.push({ kind: "tsubo", text: `ツボ あと${st.tsubo}T（使用時1ダメ）` });
+  }
+  if ((st.hiyori | 0) > 0) {
+    rows.push({ kind: "hiyori", text: `日和 あと${st.hiyori}T（熱量不可）` });
+  }
+  if (pl?.lastPlayedSpeaker) {
+    rows.push({ kind: "spk", text: `直前発言: ${pl.lastPlayedSpeaker}` });
+  }
+  return rows;
+}
+
 function renderDuelStatusRails(state) {
   const you = state.you;
   const opp = state.opponent;
-  const oppRows = [];
-  if (opp.lastPlayedSpeaker) {
-    oppRows.push({
-      kind: "spk",
-      text: `直前発言: ${opp.lastPlayedSpeaker}`,
-    });
-  }
+  const oppRows = statusRowsFromPlayer(opp, []);
   if (!state.isYourTurn) {
-    oppRows.push({
-      kind: "turn",
-      text: "相手の手番",
-      strong: true,
-    });
+    oppRows.unshift({ kind: "turn", text: "相手の手番", strong: true });
   }
   if (opp.costPool != null) {
-    oppRows.push({
-      kind: "air",
-      text: `空気 ${opp.costPool}/${opp.maxCost}`,
-    });
+    oppRows.push({ kind: "air", text: `空気 ${opp.costPool}/${opp.maxCost}` });
   }
   fillStatusRail($("#opp-status-rail-body"), oppRows);
 
-  const selfRows = [];
-  if (you.lastPlayedSpeaker) {
-    selfRows.push({
-      kind: "spk",
-      text: `直前発言: ${you.lastPlayedSpeaker}`,
-    });
-  }
+  const selfRows = statusRowsFromPlayer(you, []);
   if (state.isYourTurn) {
-    selfRows.push({
-      kind: "turn",
-      text: "あなたの手番",
-      strong: true,
-    });
+    selfRows.unshift({ kind: "turn", text: "あなたの手番", strong: true });
   }
   fillStatusRail($("#self-status-rail-body"), selfRows);
 }
@@ -997,19 +1021,27 @@ function onGameState(state) {
 
   const canPlay = isYourTurn;
   const lastSp = state.you.lastPlayedSpeaker;
+  const youSt = state.you.statuses || {};
+  const muted = !!youSt.mutedThisTurn;
   const hand = $("#hand");
   hand.textContent = "";
   state.you.hand.forEach((card, idx) => {
     const el = makeCardFace(card, { duelCtx: selfDuelCtx });
     el.dataset.index = String(idx);
-    const payCost = effectivePlayCost(card, lastSp);
-    const affordable = canPlay && payCost <= state.you.costPool;
-    const combo = speakerComboReady(card, lastSp);
+    const payCost = effectivePlayCost(card, lastSp, muted);
+    const hiyoriBlock =
+      (youSt.hiyori | 0) > 0 && cardHasTone(card, "passion");
+    const affordable =
+      canPlay && !hiyoriBlock && payCost <= state.you.costPool;
+    const combo = speakerComboReady(card, lastSp, muted);
 
     if (!affordable) el.classList.add("disabled");
     if (combo && affordable) el.classList.add("card-combo-ready");
+    if (hiyoriBlock) el.classList.add("card-hiyori-blocked");
 
-    if (canPlay && affordable) {
+    if (canPlay && hiyoriBlock) {
+      el.title = "日和状態のため【熱量】カードは使えません";
+    } else if (canPlay && affordable) {
       const comboHint = combo ? "（発言者コンボ）" : "";
       el.title = `クリックで使用${comboHint} · Ctrl+クリックで拡大（Mac は ⌘）`;
     } else if (!canPlay) {
@@ -1119,21 +1151,22 @@ async function fetchCatalog() {
   } catch {
     /* 静的ホストへフォールバック */
   }
-  const man = await fetch(resolveUrl("data/cards/manifest.json")).then((r) => {
-    if (!r.ok) throw new Error("manifest");
+  const registry = await fetch(resolveUrl("data/cards.json")).then((r) => {
+    if (!r.ok) throw new Error("cards.json");
     return r.json();
   });
-  const cards = [];
-  for (const id of man.cardIds) {
-    const c = await fetch(resolveUrl(`data/cards/${id}.json`)).then((r) => {
-      if (!r.ok) throw new Error(id);
-      return r.json();
-    });
-    cards.push(c);
-  }
   catalogById = {};
-  for (const c of cards) {
-    catalogById[c.id] = c;
+  for (const row of registry.cards || []) {
+    if (row.excluded || !row.implemented) continue;
+    catalogById[row.id] = {
+      id: row.id,
+      speaker: row.speaker,
+      text: row.text,
+      cost: row.cost,
+      tone: row.tone,
+      effect: row.effect,
+      speaker_effect: row.speaker_effect,
+    };
   }
   const init = await fetch(resolveUrl("data/initial-deck.json")).then((r) => {
     if (!r.ok) throw new Error("initial");
