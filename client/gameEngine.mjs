@@ -1,6 +1,5 @@
 /**
- * SkyWay ホスト用ゲームエンジン。効果を追加したら server/cardBalance.js の集計も見直す。
- * ルール: 同時行動 → 両者「確定」後に交戦力を比較し差分ダメージ。先確定で交戦力ボーナス。
+ * 身内語録大戦 — ターン制 TCG エンジン（SkyWay ホスト権威）
  */
 function shuffle(array) {
   const a = array.slice();
@@ -11,11 +10,11 @@ function shuffle(array) {
   return a;
 }
 
-export const MAX_HP = 50;
-export const MAX_COST_PER_TURN = 5;
-export const DRAW_PER_TURN = 5;
-/** 先にラウンド確定したプレイヤーに付与される交戦力ボーナス（蓄積に加算） */
-export const FIRST_LOCK_ATTACK_BONUS = 2;
+export const MAX_HP = 20;
+export const MAX_COST_CAP = 10;
+export const DRAW_PER_TURN = 1;
+export const FIRST_PLAYER_INITIAL_MAX = 3;
+export const SECOND_PLAYER_INITIAL_MAX = 4;
 
 const MAX_LOG = 40;
 
@@ -23,7 +22,7 @@ function pushLog(game, slot, text, cardId, kind, meta) {
   if (!game.log) game.log = [];
   const entry = {
     seq: (game._logSeq = (game._logSeq | 0) + 1),
-    round: game.roundNumber | 0,
+    turn: game.turnNumber | 0,
     slot,
     text,
     cardId: cardId || null,
@@ -41,15 +40,10 @@ export function createPlayerState(deckIds) {
     deck,
     hand: [],
     discard: [],
-    costPool: MAX_COST_PER_TURN,
-    turnMaxCost: MAX_COST_PER_TURN,
-    costCapOnNextTurn: null,
-    attackStock: 0,
-    roundLocked: false,
-    /** このプレイヤーが次にカードを使おうとしたとき、回数分プレイが無効化される */
-    negateIncomingPlays: 0,
-    /** 先行確定時に attackStock へ加算する分（カード使用時に蓄積） */
-    pendingFirstLockAttack: 0,
+    costPool: 0,
+    maxCost: 0,
+    turnCount: 0,
+    lastPlayedSpeaker: null,
   };
 }
 
@@ -100,113 +94,86 @@ function evalCondition(game, actorIndex, cond) {
       return opp.hand.length <= (cond.threshold | 0);
     case "opponentHpLte":
       return opp.hp <= (cond.threshold | 0);
-    case "opponentAttackStockGte":
-      return (opp.attackStock | 0) >= (cond.threshold | 0);
-    case "opponentAttackStockLte":
-      return (opp.attackStock | 0) <= (cond.threshold | 0);
-    case "opponentLastCardIdIn": {
-      const ids = Array.isArray(cond.cardIds) ? cond.cardIds : [];
-      const last = (game.lastPlayBySlot || [])[1 - actorIndex];
-      return last != null && ids.includes(last);
+    case "selfLastSpeakerIs":
+      return self.lastPlayedSpeaker === cond.speaker;
+    case "opponentLastSpeakerIs": {
+      const oppSpeaker = opp.lastPlayedSpeaker;
+      return oppSpeaker != null && oppSpeaker === cond.speaker;
     }
     default:
       return false;
   }
 }
 
-function discardEntireHand(p) {
-  while (p.hand.length > 0) {
-    p.discard.push(p.hand.pop());
-  }
+function cardEffects(cardDef) {
+  return cardDef.effect || cardDef.effects || [];
 }
 
-function applyCostCapForRound(p) {
-  const cap =
-    p.costCapOnNextTurn != null
-      ? Math.max(1, Math.min(MAX_COST_PER_TURN, p.costCapOnNextTurn | 0))
-      : MAX_COST_PER_TURN;
-  p.costCapOnNextTurn = null;
-  p.turnMaxCost = cap;
-  p.costPool = cap;
+function speakerCostReduction(cardDef, speakerCombo) {
+  if (!speakerCombo) return 0;
+  const se = cardDef.speaker_effect;
+  if (!se) return 1;
+  if (se.cost_reduction != null) return Math.max(0, se.cost_reduction | 0);
+  return 1;
 }
 
-/**
- * 新ラウンド開始: 両者ドロー・コスト更新・ロック解除
- */
-export function startRound(game) {
-  for (const p of game.players) {
-    p.roundLocked = false;
-    p.attackStock = 0;
-    p.pendingFirstLockAttack = 0;
-    applyCostCapForRound(p);
-    const drawn = drawCards(p, DRAW_PER_TURN);
-    p.hand.push(...drawn);
+export function effectivePlayCost(cardDef, lastPlayedSpeaker) {
+  const base = cardDef.cost | 0;
+  const speaker = cardDef.speaker;
+  if (!speaker || !lastPlayedSpeaker || speaker !== lastPlayedSpeaker) {
+    return base;
   }
-  game.firstLocker = null;
-  game.lastPlayBySlot = [null, null];
-  pushLog(
-    game,
-    null,
-    `ラウンド ${game.roundNumber} — 同時行動。カードを使い「確定」で交戦へ`,
-    null,
-    "system"
-  );
+  const reduction = speakerCostReduction(cardDef, true);
+  return Math.max(0, base - reduction);
 }
 
-function sumDiscardSelfChoose(effects) {
-  let n = 0;
-  for (const e of effects || []) {
-    if (e.type === "discardSelfChoose") n += e.value | 0;
-  }
-  return n;
+function damageMultiplier(cardDef, speakerCombo) {
+  if (!speakerCombo) return 1;
+  const se = cardDef.speaker_effect;
+  if (!se || se.damage_multiplier == null) return 1;
+  return Math.max(1, se.damage_multiplier | 0);
+}
+
+function scaledDamage(value, mult) {
+  return Math.max(0, (value | 0) * mult);
+}
+
+function checkWinner(game) {
+  if (game.players[0].hp <= 0) return 1;
+  if (game.players[1].hp <= 0) return 0;
+  return null;
 }
 
 function describeEffectLine(e) {
   const v = e.value | 0;
   switch (e.type) {
     case "damage":
-      return `交戦力${v}`;
+      return `相手に${v}ダメージ`;
     case "damageIf":
-      return `交戦力${v}（条件）`;
+      return `条件で相手に${v}ダメージ`;
     case "heal":
       return `自身回復${v}`;
+    case "healIf":
+      return `条件で自身回復${v}`;
     case "draw":
-      return `カードドロー${v}`;
+      return `ドロー${v}`;
     case "discardSelf":
       return `自身手札ランダム廃棄${v}`;
-    case "discardSelfChoose":
-      return `自身手札選択廃棄${v}`;
-    case "discardOpponent":
-      return `相手手札ランダム廃棄${v}`;
-    case "negateOpponentNextPlay":
-      return `相手次プレイ無効${Math.max(1, v || 1)}`;
-    case "healIf":
-      return `自身回復${v}（条件）`;
-    case "capOpponentNextTurn":
-      return `次ターン相手コスト上限${e.cap | 0}`;
-    case "damageSelf":
-      return `自身ダメージ${v}`;
-    case "damageSelfIf":
-      return `自身ダメージ${v}（条件）`;
-    case "attackIfFirstLockerResolve":
-      return `先行確定時交戦力${v}`;
     default:
       return e.type || "?";
   }
 }
 
-function applyCardEffects(game, actorIndex, cardDef, ctx = {}) {
+function applyEffectList(game, actorIndex, effects, ctx) {
   const opponentIndex = 1 - actorIndex;
   const self = game.players[actorIndex];
   const opp = game.players[opponentIndex];
-  const effects = cardDef.effects || [];
-  const choosePool =
-    ctx.chooseDiscardPool && ctx.chooseDiscardPool.length
-      ? ctx.chooseDiscardPool
-      : null;
-  for (const e of effects) {
+  const mult = ctx.damageMultiplier || 1;
+
+  for (const e of effects || []) {
     if (e.type === "damage") {
-      self.attackStock += e.value | 0;
+      const d = scaledDamage(e.value, mult);
+      opp.hp = Math.max(0, opp.hp - d);
     } else if (e.type === "heal") {
       self.hp = Math.min(MAX_HP, self.hp + (e.value | 0));
     } else if (e.type === "draw") {
@@ -214,50 +181,67 @@ function applyCardEffects(game, actorIndex, cardDef, ctx = {}) {
       self.hand.push(...drawn);
     } else if (e.type === "discardSelf") {
       discardRandomFromHand(self, e.value | 0);
-    } else if (e.type === "discardSelfChoose" && !ctx.skipDiscardSelfChoose) {
-      const n = e.value | 0;
-      for (let k = 0; k < n; k++) {
-        if (!choosePool || choosePool.length === 0) break;
-        const ix = choosePool.shift();
-        if (ix < 0 || ix >= self.hand.length) break;
-        const id = self.hand.splice(ix, 1)[0];
-        self.discard.push(id);
-      }
-    } else if (
-      e.type === "discardOpponent" ||
-      e.type === "negateOpponentNextPlay"
-    ) {
-      const n = Math.max(1, e.value | 0);
-      opp.negateIncomingPlays = (opp.negateIncomingPlays | 0) + n;
     } else if (e.type === "damageIf") {
       if (evalCondition(game, actorIndex, e)) {
-        self.attackStock += e.value | 0;
+        const d = scaledDamage(e.value, mult);
+        opp.hp = Math.max(0, opp.hp - d);
       }
     } else if (e.type === "healIf") {
       if (evalCondition(game, actorIndex, e)) {
         self.hp = Math.min(MAX_HP, self.hp + (e.value | 0));
       }
-    } else if (e.type === "capOpponentNextTurn") {
-      const cap = Math.max(1, Math.min(MAX_COST_PER_TURN, e.cap | 0));
-      opp.costCapOnNextTurn = cap;
-    } else if (e.type === "damageSelf") {
-      self.hp = Math.max(0, self.hp - (e.value | 0));
-    } else if (e.type === "damageSelfIf") {
-      if (evalCondition(game, actorIndex, e)) {
-        self.hp = Math.max(0, self.hp - (e.value | 0));
-      }
-    } else if (e.type === "attackIfFirstLockerResolve") {
-      self.pendingFirstLockAttack =
-        (self.pendingFirstLockAttack | 0) + (e.value | 0);
     }
   }
 }
 
-export function playCard(game, playerIndex, handIndex, cardById, opts = {}) {
+/**
+ * ゲーム開始 — 先攻プレイヤーのターン開始
+ */
+export function startGame(game, firstPlayer = 0) {
+  game.firstPlayer = firstPlayer | 0;
+  game.turnNumber = 0;
+  game.activePlayer = null;
+  startTurn(game, game.firstPlayer);
+}
+
+/**
+ * ターン開始フェイズ
+ */
+export function startTurn(game, playerIndex) {
   const p = game.players[playerIndex];
-  if (p.roundLocked) {
-    return { ok: false, reason: "確定済みのためカードは使えません。" };
+  if (p.turnCount === 0) {
+    p.maxCost =
+      playerIndex === game.firstPlayer
+        ? FIRST_PLAYER_INITIAL_MAX
+        : SECOND_PLAYER_INITIAL_MAX;
+  } else {
+    p.maxCost = Math.min(MAX_COST_CAP, p.maxCost + 1);
   }
+  p.turnCount += 1;
+  p.costPool = p.maxCost;
+  p.lastPlayedSpeaker = null;
+
+  const drawn = drawCards(p, DRAW_PER_TURN);
+  p.hand.push(...drawn);
+
+  game.turnNumber = (game.turnNumber | 0) + 1;
+  game.activePlayer = playerIndex;
+
+  const who = playerIndex === game.firstPlayer ? "先攻" : "後攻";
+  pushLog(
+    game,
+    playerIndex,
+    `ターン${game.turnNumber} — ${who}の手番（空気 ${p.costPool}/${p.maxCost}）`,
+    null,
+    "system"
+  );
+}
+
+export function playCard(game, playerIndex, handIndex, cardById) {
+  if (game.activePlayer !== playerIndex) {
+    return { ok: false, reason: "手番ではありません。" };
+  }
+  const p = game.players[playerIndex];
   if (handIndex < 0 || handIndex >= p.hand.length) {
     return { ok: false, reason: "手札が不正です。" };
   }
@@ -265,175 +249,68 @@ export function playCard(game, playerIndex, handIndex, cardById, opts = {}) {
   const cardId = p.hand[handIndex];
   const def = cardById[cardId];
   if (!def) return { ok: false, reason: "カード定義がありません。" };
-  const cost = def.cost | 0;
-  if (cost > p.costPool) {
-    return { ok: false, reason: "コストが足りません。" };
+
+  const speakerCombo =
+    !!def.speaker &&
+    p.lastPlayedSpeaker != null &&
+    def.speaker === p.lastPlayedSpeaker;
+
+  const payCost = effectivePlayCost(def, p.lastPlayedSpeaker);
+  if (payCost > p.costPool) {
+    return { ok: false, reason: "コスト（空気）が足りません。" };
   }
 
-  const needChoose = sumDiscardSelfChoose(def.effects);
-  const picks = opts.discardPicks;
-  const L = p.hand.length;
-  if (needChoose > 0) {
-    if (!Array.isArray(picks) || picks.length !== needChoose) {
-      return {
-        ok: false,
-        reason: `このカードは使用時に手札を${needChoose}枚選んで捨てる必要があります。`,
-      };
-    }
-    if (L - 1 < needChoose) {
-      return { ok: false, reason: "選んで捨てる手札が足りません。" };
-    }
-    const uniq = new Set(picks);
-    if (uniq.size !== picks.length) {
-      return { ok: false, reason: "捨てる手札の指定が重複しています。" };
-    }
-    for (const ix of picks) {
-      const n = ix | 0;
-      if (n < 0 || n >= L - 1) {
-        return { ok: false, reason: "捨てる手札の指定が不正です。" };
-      }
-    }
-  } else if (picks && picks.length > 0) {
-    return { ok: false, reason: "このカードでは手札の指定捨ては不要です。" };
-  }
-
-  const choosePool =
-    needChoose > 0 ? [...picks].sort((a, b) => b - a) : null;
-  const negated = (p.negateIncomingPlays | 0) > 0;
-
-  if (negated) {
-    p.negateIncomingPlays -= 1;
-  }
-
-  p.costPool -= cost;
+  p.costPool -= payCost;
   p.hand.splice(handIndex, 1);
   p.discard.push(cardId);
 
-  if (negated && needChoose > 0 && choosePool) {
-    for (let k = 0; k < needChoose; k++) {
-      if (!choosePool.length) break;
-      const ix = choosePool.shift();
-      if (ix < 0 || ix >= p.hand.length) break;
-      const rid = p.hand.splice(ix, 1)[0];
-      p.discard.push(rid);
+  const ctx = {
+    damageMultiplier: damageMultiplier(def, speakerCombo),
+    speakerCombo,
+  };
+
+  if (speakerCombo) {
+    const se = def.speaker_effect;
+    if (se?.effects?.length) {
+      applyEffectList(game, playerIndex, se.effects, ctx);
     }
   }
 
-  if (!game.lastPlayBySlot) game.lastPlayBySlot = [null, null];
-  game.lastPlayBySlot[playerIndex] = cardId;
+  applyEffectList(game, playerIndex, cardEffects(def), ctx);
 
-  if (negated) {
-    pushLog(
-      game,
-      playerIndex,
-      `無効化 — ${def.name || cardId} は効果のみ発動せず（コスト${cost}・捨て札化）`,
-      cardId,
-      "negate"
-    );
-    return { ok: true, negated: true };
+  p.lastPlayedSpeaker = def.speaker || null;
+
+  const label = def.text || def.name || cardId;
+  const effText = cardEffects(def).map(describeEffectLine).join(" / ");
+  let logText = label;
+  if (speakerCombo) {
+    logText += "（発言者コンボ）";
   }
-
-  applyCardEffects(game, playerIndex, def, {
-    chooseDiscardPool: choosePool,
-    skipDiscardSelfChoose: false,
+  if (effText) logText += ` — ${effText}`;
+  if (payCost !== (def.cost | 0)) {
+    logText += ` [コスト${def.cost}→${payCost}]`;
+  }
+  pushLog(game, playerIndex, logText, cardId, "play", {
+    speakerCombo,
+    payCost,
   });
 
-  const effText = (def.effects || []).map(describeEffectLine).join(" / ");
-  pushLog(
-    game,
-    playerIndex,
-    `${def.name || cardId}${effText ? ` — ${effText}` : ""}`,
-    cardId,
-    "play"
-  );
-
-  return { ok: true };
+  const winner = checkWinner(game);
+  if (winner !== null) {
+    return { ok: true, winnerIndex: winner };
+  }
+  return { ok: true, speakerCombo };
 }
 
-/**
- * ラウンド確定（ロック）。両者ロック済みなら呼び出し側で resolveRound を実行。
- */
-export function lockRound(game, playerIndex) {
-  const p = game.players[playerIndex];
-  if (p.roundLocked) {
-    return { ok: false, reason: "すでに確定済みです。" };
-  }
-  p.roundLocked = true;
-  if (game.firstLocker === null) {
-    game.firstLocker = playerIndex;
-    p.attackStock += FIRST_LOCK_ATTACK_BONUS;
-    pushLog(
-      game,
-      playerIndex,
-      `先に確定 — 交戦力+${FIRST_LOCK_ATTACK_BONUS}（先確定ボーナス）`,
-      null,
-      "lock"
-    );
-    const delayed = p.pendingFirstLockAttack | 0;
-    if (delayed > 0) {
-      p.attackStock += delayed;
-      p.pendingFirstLockAttack = 0;
-      pushLog(
-        game,
-        playerIndex,
-        `先行確定 — 交戦力+${delayed}（カード効果）`,
-        null,
-        "lock"
-      );
-    }
-  } else {
-    pushLog(game, playerIndex, "ラウンド確定", null, "lock");
-  }
-  return { ok: true };
-}
-
-export function bothLocked(game) {
-  return game.players[0].roundLocked && game.players[1].roundLocked;
-}
-
-/**
- * 交戦解決 → 手札全捨て → 次ラウンド
- */
-export function resolveRound(game, cardById) {
-  const a0 = game.players[0].attackStock;
-  const a1 = game.players[1].attackStock;
-
-  if (a0 > a1) {
-    const d = a0 - a1;
-    game.players[1].hp = Math.max(0, game.players[1].hp - d);
-    pushLog(game, 1, "", null, "clash", {
-      clashDamage: true,
-      damage: d,
-      winnerAttack: a0,
-      loserAttack: a1,
-      victimSlot: 1,
-    });
-  } else if (a1 > a0) {
-    const d = a1 - a0;
-    game.players[0].hp = Math.max(0, game.players[0].hp - d);
-    pushLog(game, 0, "", null, "clash", {
-      clashDamage: true,
-      damage: d,
-      winnerAttack: a1,
-      loserAttack: a0,
-      victimSlot: 0,
-    });
-  } else {
-    pushLog(game, null, `交戦 — 同値（${a0}）でダメージなし`, null, "clash");
+export function endTurn(game, playerIndex) {
+  if (game.activePlayer !== playerIndex) {
+    return { ok: false, reason: "手番ではありません。" };
   }
 
-  for (const p of game.players) {
-    discardEntireHand(p);
-  }
+  pushLog(game, playerIndex, "ターン終了", null, "endTurn");
 
-  if (game.players[0].hp <= 0 || game.players[1].hp <= 0) {
-    const winnerIndex = game.players[0].hp <= 0 ? 1 : 0;
-    return { winnerIndex };
-  }
-
-  game.roundNumber += 1;
-  game.firstLocker = null;
-  startRound(game);
+  const next = 1 - playerIndex;
+  startTurn(game, next);
   return { ok: true };
 }
 
@@ -449,12 +326,9 @@ export function publicSnapshot(game, viewerIndex, cardById) {
       deckCount: self.deck.length,
       discardCount: self.discard.length,
       costPool: self.costPool,
-      maxCost: self.turnMaxCost ?? MAX_COST_PER_TURN,
-      attackStock: self.attackStock,
-      pendingFirstLockAttack: self.pendingFirstLockAttack | 0,
-      roundLocked: self.roundLocked,
-      negateIncomingPlays: self.negateIncomingPlays,
-      costCapNextTurn: self.costCapOnNextTurn,
+      maxCost: self.maxCost,
+      lastPlayedSpeaker: self.lastPlayedSpeaker,
+      turnCount: self.turnCount,
     },
     opponent: {
       hp: opp.hp,
@@ -463,16 +337,15 @@ export function publicSnapshot(game, viewerIndex, cardById) {
       handCount: opp.hand.length,
       deckCount: opp.deck.length,
       discardCount: opp.discard.length,
-      attackStock: opp.attackStock,
-      roundLocked: opp.roundLocked,
-      negateIncomingPlays: opp.negateIncomingPlays,
-      pendingFirstLockAttack: opp.pendingFirstLockAttack | 0,
-      costCapNextTurn: opp.costCapOnNextTurn,
+      lastPlayedSpeaker: opp.lastPlayedSpeaker,
+      costPool: opp.costPool,
+      maxCost: opp.maxCost,
     },
-    roundNumber: game.roundNumber,
+    turnNumber: game.turnNumber,
+    activePlayer: game.activePlayer,
+    isYourTurn: game.activePlayer === viewerIndex,
+    firstPlayer: game.firstPlayer,
     youAre: viewerIndex,
-    firstLocker: game.firstLocker,
-    lastPlayBySlot: (game.lastPlayBySlot || [null, null]).slice(),
     battleLog: (game.log || []).slice(),
   };
 }

@@ -1,0 +1,7 @@
+{
+  "id": "c_shiran",
+  "speaker": "C君",
+  "text": "知らんがな",
+  "cost": 0,
+  "effect": [{ "type": "damage", "value": 1 }]
+}

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>シンプルなカードゲーム</title>
+    <title>身内語録大戦（仮）</title>
     <base id="scg-base" href="/" />
     <script>
       (function () {
@@ -48,8 +48,8 @@
 
     <main class="shell">
       <header class="topbar">
-        <h1 class="logo">シンプルなカード</h1>
-        <p class="tagline">同時行動・交戦力・20枚デッキ・50HP</p>
+        <h1 class="logo">身内語録大戦</h1>
+        <p class="tagline">発言者コンボ・空気コスト・20枚デッキ・20HP</p>
       </header>
 
       <!-- タイトル -->
@@ -220,7 +220,7 @@
                   type="search"
                   id="catalog-filter-text"
                   class="input catalog-filter-input"
-                  placeholder="名前・説明で絞り込み"
+                  placeholder="語録・発言者で絞り込み"
                   autocomplete="off"
                 />
                 <label class="catalog-filter-cost">
@@ -232,6 +232,12 @@
                     <option value="2">2</option>
                     <option value="3">3</option>
                     <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
                   </select>
                 </label>
               </div>
@@ -250,16 +256,13 @@
               <div class="duel-id-block">
                 <span class="duel-player-name">相手</span>
                 <span class="duel-hp-line"
-                  >HP <span id="opp-hp" class="duel-hp-num">50</span
-                  ><span class="duel-hp-max">/50</span></span
+                  >HP <span id="opp-hp" class="duel-hp-num">20</span
+                  ><span class="duel-hp-max">/20</span></span
                 >
-                <span id="opp-lock-badge" class="lock-badge" hidden>確定済</span>
               </div>
-              <div class="duel-attack-block" aria-label="相手の交戦力">
-                <span class="duel-attack-label">交戦力</span>
-                <span id="opp-attack-stock" class="attack-stock duel-attack-num"
-                  >0</span
-                >
+              <div class="duel-speaker-block" aria-label="相手の直前発言者">
+                <span class="duel-speaker-label">直前</span>
+                <span id="opp-last-speaker" class="duel-speaker-val">—</span>
               </div>
             </header>
             <div class="duel-field-split duel-field-split--opp">
@@ -325,7 +328,7 @@
                   <span class="pile-name">手札</span>
                   <span id="self-hand" class="pile-num">0</span>
                   <div class="duel-pile-cost-row" id="cost-bar-pile">
-                    <span class="duel-pile-cost-label">コスト</span>
+                    <span class="duel-pile-cost-label">空気</span>
                     <div class="duel-pile-cost-values" aria-live="polite">
                       <span id="cost-current-pile">5</span>
                       <span class="duel-pile-cost-sep">/</span>
@@ -356,28 +359,23 @@
               <div class="duel-foot-left">
                 <div class="duel-foot-stats">
                   <span class="duel-round-badge"
-                    >R<span id="turn-no">1</span></span
+                    >T<span id="turn-no">1</span></span
                   >
-                  <span class="duel-stat-chip duel-stat-chip--atk">
-                    <span class="duel-stat-chip-label">交戦力</span>
-                    <span
-                      id="self-attack-stock"
-                      class="attack-stock duel-stat-chip-num"
-                      >0</span
+                  <span class="duel-stat-chip duel-stat-chip--speaker">
+                    <span class="duel-stat-chip-label">直前</span>
+                    <span id="self-last-speaker" class="duel-stat-chip-num"
+                      >—</span
                     >
                   </span>
                   <span class="duel-stat-chip duel-stat-chip--hp">
                     <span class="duel-stat-chip-label">HP</span>
                     <span class="duel-stat-chip-num"
-                      ><span id="self-hp" class="duel-hp-num">50</span
-                      ><span class="duel-hp-max">/50</span></span
+                      ><span id="self-hp" class="duel-hp-num">20</span
+                      ><span class="duel-hp-max">/20</span></span
                     >
                   </span>
-                  <span id="self-lock-badge" class="lock-badge" hidden
-                    >確定済</span
-                  >
                 </div>
-                <div class="turn-banner" id="turn-banner">同時行動中</div>
+                <div class="turn-banner" id="turn-banner">手番待ち</div>
               </div>
               <div class="duel-foot-right">
                 <details class="duel-help-details">
@@ -398,7 +396,7 @@
                     カード: 大
                   </button>
                   <button type="button" class="btn primary" id="btn-end-turn">
-                    このラウンドを確定
+                    ターン終了
                   </button>
                 </div>
               </div>

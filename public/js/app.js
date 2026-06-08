@@ -68,22 +68,40 @@ async function disposeSkyWay() {
   skywaySession = null;
 }
 
-function sumDiscardSelfChoose(effects) {
-  let n = 0;
-  for (const e of effects || []) {
-    if (e.type === "discardSelfChoose") n += e.value | 0;
+function cardEffectList(card) {
+  return card?.effect || card?.effects || [];
+}
+
+function effectivePlayCost(card, lastPlayedSpeaker) {
+  const base = card.cost | 0;
+  const speaker = card.speaker;
+  if (!speaker || !lastPlayedSpeaker || speaker !== lastPlayedSpeaker) {
+    return base;
   }
-  return n;
+  const se = card.speaker_effect;
+  const reduction =
+    se && se.cost_reduction != null ? Math.max(0, se.cost_reduction | 0) : 1;
+  return Math.max(0, base - reduction);
 }
 
-function discardChooseCountFromCard(card) {
-  const eff = catalogById[card?.id]?.effects;
-  return sumDiscardSelfChoose(eff);
-}
-
-function postPlayIndexForDiscardPick(clickedIndex, playIndex) {
-  if (clickedIndex === playIndex) return null;
-  return clickedIndex < playIndex ? clickedIndex : clickedIndex - 1;
+function describeEffectShort(e) {
+  const v = e.value | 0;
+  switch (e.type) {
+    case "damage":
+      return `相手${v}ダメ`;
+    case "heal":
+      return `回復${v}`;
+    case "draw":
+      return `ドロー${v}`;
+    case "discardSelf":
+      return `手札捨${v}`;
+    case "damageIf":
+      return `条件${v}ダメ`;
+    case "healIf":
+      return `条件回復${v}`;
+    default:
+      return e.type || "";
+  }
 }
 
 function playCardAction(handIndex, discardPicks) {
@@ -158,12 +176,6 @@ function actorHpVal(state, slot) {
   return slot === state.youAre ? state.you.hp | 0 : state.opponent.hp | 0;
 }
 
-function actorAttackStock(state, slot) {
-  return slot === state.youAre
-    ? state.you.attackStock | 0
-    : state.opponent.attackStock | 0;
-}
-
 function evalIfEffectForActor(effect, state, actorSlot) {
   const mode = effect.mode;
   const oppSlot = 1 - actorSlot;
@@ -171,9 +183,15 @@ function evalIfEffectForActor(effect, state, actorSlot) {
   const oppHand = actorHandLen(state, oppSlot);
   const selfHp = actorHpVal(state, actorSlot);
   const oppHp = actorHpVal(state, oppSlot);
-  const oppAtk = actorAttackStock(state, oppSlot);
   const th = effect.threshold | 0;
-  const lastPlayBySlot = state.lastPlayBySlot || [null, null];
+  const selfSpeaker =
+    actorSlot === state.youAre
+      ? state.you.lastPlayedSpeaker
+      : state.opponent.lastPlayedSpeaker;
+  const oppSpeaker =
+    oppSlot === state.youAre
+      ? state.you.lastPlayedSpeaker
+      : state.opponent.lastPlayedSpeaker;
   switch (mode) {
     case "opponentHandGte":
       return oppHand >= th;
@@ -187,46 +205,21 @@ function evalIfEffectForActor(effect, state, actorSlot) {
       return oppHand <= th;
     case "opponentHpLte":
       return oppHp <= th;
-    case "opponentAttackStockGte":
-      return oppAtk >= th;
-    case "opponentAttackStockLte":
-      return oppAtk <= th;
-    case "opponentLastCardIdIn": {
-      const ids = Array.isArray(effect.cardIds) ? effect.cardIds : [];
-      const last = lastPlayBySlot[oppSlot];
-      return last != null && ids.includes(last);
-    }
+    case "selfLastSpeakerIs":
+      return selfSpeaker === effect.speaker;
+    case "opponentLastSpeakerIs":
+      return oppSpeaker === effect.speaker;
     default:
       return false;
   }
 }
 
-function aggregateBonusVisual(card, duelCtx) {
-  if (!duelCtx?.state) return "neutral";
-  const { state, actorSlot } = duelCtx;
-  const eff = card.effects || [];
-  const tracked = eff.filter(
-    (e) =>
-      e.type === "damageIf" ||
-      e.type === "damageSelfIf" ||
-      e.type === "healIf" ||
-      e.type === "attackIfFirstLockerResolve"
+function speakerComboReady(card, lastPlayedSpeaker) {
+  return (
+    !!card?.speaker &&
+    lastPlayedSpeaker != null &&
+    card.speaker === lastPlayedSpeaker
   );
-  if (!tracked.length) return "neutral";
-  const marks = [];
-  for (const e of tracked) {
-    if (e.type === "damageIf" || e.type === "healIf" || e.type === "damageSelfIf") {
-      marks.push(evalIfEffectForActor(e, state, actorSlot) ? "met" : "unmet");
-    } else if (e.type === "attackIfFirstLockerResolve") {
-      if (state.firstLocker == null) marks.push("unknown");
-      else if (state.firstLocker === actorSlot) marks.push("met");
-      else marks.push("unmet");
-    }
-  }
-  if (marks.includes("unmet")) return "unmet";
-  if (marks.includes("unknown")) return "unknown";
-  if (marks.every((m) => m === "met")) return "met";
-  return "neutral";
 }
 
 /** 無条件の数値の直後に続く「，相手手札…」など、条件句へ続く前置き muted（本文では bonus 側にまとめる） */
@@ -336,45 +329,43 @@ function appendCardBodyParts(container, parts, start, end) {
 
 function renderCardBody(container, card, duelCtx) {
   container.textContent = "";
-  const parts = card.body || [];
-  const eff = card.effects || [];
-  const bonusStart = computeBonusStartIndex(parts, eff);
+  const quote = document.createElement("div");
+  quote.className = "card-quote";
+  quote.textContent = card.text || card.name || card.id || "";
+  container.appendChild(quote);
 
-  if (bonusStart < 0) {
-    appendCardBodyParts(container, parts, 0, parts.length);
-    return;
+  const eff = cardEffectList(card);
+  if (eff.length) {
+    const fx = document.createElement("div");
+    fx.className = "card-effect-line";
+    const parts = eff.map((e) => {
+      if (e.type === "damageIf" || e.type === "healIf") {
+        const met =
+          duelCtx?.state &&
+          evalIfEffectForActor(e, duelCtx.state, duelCtx.actorSlot);
+        return `${describeEffectShort(e)}${met === true ? "✓" : met === false ? "×" : ""}`;
+      }
+      return describeEffectShort(e);
+    });
+    fx.textContent = parts.join(" · ");
+    container.appendChild(fx);
   }
 
-  if (bonusStart > 0) {
-    appendCardBodyParts(container, parts, 0, bonusStart);
+  if (card.speaker_effect) {
+    const combo = document.createElement("div");
+    combo.className = "card-combo-hint";
+    const bits = ["コンボ"];
+    if (card.speaker_effect.damage_multiplier > 1) {
+      bits.push(`ダメ×${card.speaker_effect.damage_multiplier}`);
+    }
+    if (card.speaker_effect.effects?.length) {
+      bits.push(
+        card.speaker_effect.effects.map(describeEffectShort).join("·")
+      );
+    }
+    combo.textContent = bits.join(" ");
+    container.appendChild(combo);
   }
-
-  const wrap = document.createElement("div");
-  const vis = aggregateBonusVisual(card, duelCtx);
-  wrap.className = "card-body-bonus-wrap";
-  if (vis === "met") wrap.classList.add("card-body-bonus--met");
-  else if (vis === "unmet") wrap.classList.add("card-body-bonus--unmet");
-  else if (vis === "unknown") wrap.classList.add("card-body-bonus--unknown");
-  else wrap.classList.add("card-body-bonus--neutral");
-
-  const lab = document.createElement("div");
-  lab.className = "card-body-bonus-label";
-  lab.textContent = "追加効果（条件）";
-  wrap.appendChild(lab);
-
-  const badge = document.createElement("div");
-  badge.className = "card-body-bonus-badge";
-  if (vis === "met") badge.textContent = "成立";
-  else if (vis === "unmet") badge.textContent = "未成立";
-  else if (vis === "unknown") badge.textContent = "未確定";
-  else badge.textContent = "対戦外";
-  wrap.appendChild(badge);
-
-  const bonusFlow = document.createElement("div");
-  bonusFlow.className = "card-body-flow";
-  appendCardBodyParts(bonusFlow, parts, bonusStart, parts.length);
-  wrap.appendChild(bonusFlow);
-  container.appendChild(wrap);
 }
 
 function makeCardFace(card, { wide, duelCtx } = {}) {
@@ -382,22 +373,37 @@ function makeCardFace(card, { wide, duelCtx } = {}) {
   root.className = wide ? "card-face wide" : "card-face";
   if (card?.id) root.dataset.cardId = card.id;
 
+  const lastSp =
+    duelCtx?.actorSlot === duelCtx?.state?.youAre
+      ? duelCtx?.state?.you?.lastPlayedSpeaker
+      : duelCtx?.state?.opponent?.lastPlayedSpeaker;
+  if (speakerComboReady(card, lastSp)) {
+    root.classList.add("card-combo-ready");
+  }
+
   const inner = document.createElement("div");
   inner.className = "card-inner";
 
   const headPanel = document.createElement("div");
   headPanel.className = "card-panel card-panel--head";
 
-  const title = document.createElement("div");
-  title.className = "card-title";
-  title.textContent = card.name || card.id;
+  const speaker = document.createElement("div");
+  speaker.className = "card-speaker";
+  speaker.textContent = card.speaker || "—";
 
   const cost = document.createElement("div");
   cost.className = "card-cost";
-  const c = Math.min(5, Math.max(0, card.cost | 0));
-  cost.textContent = String(c);
+  const displayCost =
+    duelCtx?.state != null
+      ? effectivePlayCost(card, lastSp)
+      : Math.min(10, Math.max(0, card.cost | 0));
+  cost.textContent = String(displayCost);
+  if (displayCost < (card.cost | 0)) {
+    cost.title = `基本コスト ${card.cost}`;
+    cost.classList.add("card-cost--reduced");
+  }
 
-  headPanel.append(title, cost);
+  headPanel.append(speaker, cost);
 
   const bodyPanel = document.createElement("div");
   bodyPanel.className = "card-panel card-panel--body";
@@ -806,63 +812,39 @@ function fillStatusRail(bodyEl, rows) {
 function renderDuelStatusRails(state) {
   const you = state.you;
   const opp = state.opponent;
-  const youAre = state.youAre | 0;
-  const fl = state.firstLocker;
-  const oppIx = 1 - youAre;
-
   const oppRows = [];
-  if ((opp.negateIncomingPlays | 0) > 0) {
+  if (opp.lastPlayedSpeaker) {
     oppRows.push({
-      kind: "neg",
-      text: `相手の使用無効 あと${opp.negateIncomingPlays}`,
+      kind: "spk",
+      text: `直前発言: ${opp.lastPlayedSpeaker}`,
     });
   }
-  if ((opp.pendingFirstLockAttack | 0) > 0) {
+  if (!state.isYourTurn) {
     oppRows.push({
-      kind: "pfa",
-      text: `相手 先行交戦 +${opp.pendingFirstLockAttack}`,
-    });
-  }
-  const occ = opp.costCapNextTurn;
-  if (occ != null && (occ | 0) > 0) {
-    oppRows.push({
-      kind: "cap",
-      text: `次ターン相手コスト ${occ | 0}`,
-    });
-  }
-  if (fl === oppIx) {
-    oppRows.push({
-      kind: "lock",
-      text: "相手が先行確定",
+      kind: "turn",
+      text: "相手の手番",
       strong: true,
+    });
+  }
+  if (opp.costPool != null) {
+    oppRows.push({
+      kind: "air",
+      text: `空気 ${opp.costPool}/${opp.maxCost}`,
     });
   }
   fillStatusRail($("#opp-status-rail-body"), oppRows);
 
   const selfRows = [];
-  if ((you.negateIncomingPlays | 0) > 0) {
+  if (you.lastPlayedSpeaker) {
     selfRows.push({
-      kind: "neg",
-      text: `あなたの使用無効 あと${you.negateIncomingPlays}`,
+      kind: "spk",
+      text: `直前発言: ${you.lastPlayedSpeaker}`,
     });
   }
-  if ((you.pendingFirstLockAttack | 0) > 0) {
+  if (state.isYourTurn) {
     selfRows.push({
-      kind: "pfa",
-      text: `先行確定交戦 +${you.pendingFirstLockAttack}`,
-    });
-  }
-  const ycc = you.costCapNextTurn;
-  if (ycc != null && (ycc | 0) > 0) {
-    selfRows.push({
-      kind: "cap",
-      text: `次の自分コスト ${ycc | 0}`,
-    });
-  }
-  if (fl === youAre) {
-    selfRows.push({
-      kind: "lock",
-      text: "あなたが先行確定",
+      kind: "turn",
+      text: "あなたの手番",
       strong: true,
     });
   }
@@ -870,7 +852,7 @@ function renderDuelStatusRails(state) {
 }
 
 /**
- * 直近のログ・HP・交戦力・確定の変化から SE を鳴らす（lastBattleLogSeq 更新前に呼ぶ）。
+ * 直近のログ・HP の変化から SE を鳴らす（lastBattleLogSeq 更新前に呼ぶ）。
  */
 function playDuelSfx(state, snap) {
   const S = typeof ScgSfx === "undefined" ? null : ScgSfx;
@@ -882,32 +864,13 @@ function playDuelSfx(state, snap) {
   const newEntries = logs
     .filter((e) => e.seq > lastBattleLogSeq)
     .sort((a, b) => a.seq - b.seq);
-  let clashDamage = false;
   for (const e of newEntries) {
-    if (
-      e.kind === "clash" &&
-      (e.meta?.clashDamage || /ダメージ/.test(String(e.text || "")))
-    ) {
-      clashDamage = true;
-    }
-  }
-  let clashHitPlayed = false;
-  for (const e of newEntries) {
-    if (e.kind === "clash") {
-      if (
-        e.meta?.clashDamage ||
-        /ダメージ/.test(String(e.text || ""))
-      ) {
-        if (!clashHitPlayed) {
-          S.clashHit();
-          clashHitPlayed = true;
-        }
-      } else if (/同値/.test(String(e.text || ""))) S.clashTie();
-    } else if (e.kind === "negate") {
-      S.negate();
-    } else if (e.kind === "play") {
+    if (e.kind === "play") {
       if (e.slot === youAre) S.playCard();
       else if (e.slot != null) S.oppPlay();
+      if (e.meta?.speakerCombo) S.attackTick();
+    } else if (e.kind === "endTurn") {
+      S.lockConfirm();
     } else if (e.kind === "system") {
       S.roundSystem();
     }
@@ -915,35 +878,14 @@ function playDuelSfx(state, snap) {
   const ps = snap.sfxPrevSelfHp;
   const po = snap.sfxPrevOppHp;
   if (ps !== null && selfHp > ps) S.heal();
-  if (!clashDamage) {
-    if (ps !== null && selfHp < ps) S.selfHurt();
-    if (po !== null && oppHp < po) S.dealDamage();
-  }
-  const lg = lastDuelGameState;
-  let lockDone = false;
-  if (lg && !lg.you.roundLocked && state.you.roundLocked) {
-    S.lockConfirm();
-    lockDone = true;
-  }
-  if (!lockDone && lg && !lg.opponent.roundLocked && state.opponent.roundLocked) {
-    S.lockConfirm();
-  }
-  if (snap.sfxPrevSelfAtk >= 0) {
-    const ns = state.you.attackStock | 0;
-    if (ns > snap.sfxPrevSelfAtk) S.attackTick();
-  }
-  if (snap.sfxPrevOppAtk >= 0) {
-    const no = state.opponent.attackStock | 0;
-    if (no > snap.sfxPrevOppAtk) S.uiTap();
-  }
+  if (ps !== null && selfHp < ps) S.selfHurt();
+  if (po !== null && oppHp < po) S.dealDamage();
 }
 
 function onGameState(state) {
   const sfxSnap = {
     sfxPrevSelfHp: duelPrevSelfHp,
     sfxPrevOppHp: duelPrevOppHp,
-    sfxPrevSelfAtk: lastSelfAttack,
-    sfxPrevOppAtk: lastOppAttack,
   };
   showScreen("screen-game");
   applyDuelZoomClass();
@@ -980,7 +922,7 @@ function onGameState(state) {
   }
   duelPrevSelfHp = selfHp;
   duelPrevOppHp = oppHp;
-  const maxHp = state.you.maxHp ?? state.opponent.maxHp ?? 50;
+  const maxHp = state.you.maxHp ?? state.opponent.maxHp ?? 20;
   document.querySelectorAll(".duel-hp-max").forEach((el) => {
     el.textContent = `/${maxHp}`;
   });
@@ -995,34 +937,16 @@ function onGameState(state) {
   if (selfHandCt) {
     selfHandCt.textContent = String(state.you.hand?.length ?? 0);
   }
-  $("#turn-no").textContent = String(state.roundNumber);
+  $("#turn-no").textContent = String(state.turnNumber ?? 1);
 
-  const oStock = String(state.opponent.attackStock | 0);
-  const sStock = String(state.you.attackStock | 0);
-  $("#opp-attack-stock").textContent = oStock;
-  $("#self-attack-stock").textContent = sStock;
-
-  const oa = $("#opp-attack-stock");
-  const sa = $("#self-attack-stock");
-  const pendAtk = state.you.pendingFirstLockAttack | 0;
-  if (sa) {
-    sa.title =
-      pendAtk > 0
-        ? `先行確定時に交戦力+${pendAtk}（確定した時点で加算）`
-        : "";
+  const oppSpEl = $("#opp-last-speaker");
+  if (oppSpEl) {
+    oppSpEl.textContent = state.opponent.lastPlayedSpeaker || "—";
   }
-  if ((state.opponent.attackStock | 0) > lastOppAttack) {
-    oa.classList.add("pulse");
-    clearTimeout(oa._ptm);
-    oa._ptm = setTimeout(() => oa.classList.remove("pulse"), 480);
+  const selfSpEl = $("#self-last-speaker");
+  if (selfSpEl) {
+    selfSpEl.textContent = state.you.lastPlayedSpeaker || "—";
   }
-  if ((state.you.attackStock | 0) > lastSelfAttack) {
-    sa.classList.add("pulse");
-    clearTimeout(sa._ptm);
-    sa._ptm = setTimeout(() => sa.classList.remove("pulse"), 480);
-  }
-  lastOppAttack = state.opponent.attackStock | 0;
-  lastSelfAttack = state.you.attackStock | 0;
 
   const costCurPile = $("#cost-current-pile");
   const costMaxPile = $("#cost-max-pile");
@@ -1033,34 +957,22 @@ function onGameState(state) {
     );
   }
 
-  const myLock = !!state.you.roundLocked;
-  const opLock = !!state.opponent.roundLocked;
+  const isYourTurn = !!state.isYourTurn;
   const duelActorYou = state.youAre | 0;
   const duelActorOpp = 1 - duelActorYou;
   const selfDuelCtx = { state, actorSlot: duelActorYou };
   const oppDuelCtx = { state, actorSlot: duelActorOpp };
-  if (myLock) pendingChooseDiscard = null;
-
-  const badgeSelf = $("#self-lock-badge");
-  const badgeOpp = $("#opp-lock-badge");
-  if (badgeSelf) {
-    badgeSelf.hidden = !myLock;
-  }
-  if (badgeOpp) {
-    badgeOpp.hidden = !opLock;
-  }
+  pendingChooseDiscard = null;
 
   const banner = $("#turn-banner");
-  if (myLock && opLock) {
-    banner.textContent = "双方確定 — 交戦を解決中";
-  } else if (myLock) {
-    banner.textContent = "あなたは確定済み（相手の行動・確定待ち）";
+  if (isYourTurn) {
+    banner.textContent = "あなたの手番 — カードを使い、終わったらターン終了";
   } else {
-    banner.textContent = "同時行動 — カードを使い、準備ができたら確定";
+    banner.textContent = "相手の手番 — 相手のプレイを待っています";
   }
-  banner.classList.toggle("wait", myLock);
+  banner.classList.toggle("wait", !isYourTurn);
 
-  $("#cost-bar-pile")?.classList.toggle("wait", myLock);
+  $("#cost-bar-pile")?.classList.toggle("wait", !isYourTurn);
 
   const oppStrip = $("#opp-hand-cards");
   if (oppStrip) {
@@ -1082,35 +994,27 @@ function onGameState(state) {
 
   renderBattleLog(state.battleLog, state.youAre);
 
-  const canPlay = !myLock;
+  const canPlay = isYourTurn;
+  const lastSp = state.you.lastPlayedSpeaker;
   const hand = $("#hand");
   hand.textContent = "";
   state.you.hand.forEach((card, idx) => {
     const el = makeCardFace(card, { duelCtx: selfDuelCtx });
     el.dataset.index = String(idx);
-    const pend = pendingChooseDiscard;
-    const affordable = canPlay && (card.cost | 0) <= state.you.costPool;
-    const chooseNeed = discardChooseCountFromCard(card);
+    const payCost = effectivePlayCost(card, lastSp);
+    const affordable = canPlay && payCost <= state.you.costPool;
+    const combo = speakerComboReady(card, lastSp);
 
-    if (!pend && !affordable) el.classList.add("disabled");
-    if (pend) {
-      if (idx === pend.playIndex) el.classList.add("card-pending-source");
-      else if (canPlay) el.classList.add("card-pending-pick");
-    }
+    if (!affordable) el.classList.add("disabled");
+    if (combo && affordable) el.classList.add("card-combo-ready");
 
-    if (pend && idx === pend.playIndex) {
-      el.title = "クリックでキャンセル · Ctrl+クリックで拡大（Mac は ⌘）";
-    } else if (pend && idx !== pend.playIndex) {
-      el.title =
-        "クリックで捨て札として選ぶ · Ctrl+クリックで拡大（Mac は ⌘）";
-    } else if (canPlay && affordable) {
-      const hint =
-        chooseNeed > 0
-          ? "（使用時に手札を選んで捨てます）"
-          : "";
-      el.title = `クリックで使用${hint} · Ctrl+クリックで拡大（Mac は ⌘）`;
+    if (canPlay && affordable) {
+      const comboHint = combo ? "（発言者コンボ）" : "";
+      el.title = `クリックで使用${comboHint} · Ctrl+クリックで拡大（Mac は ⌘）`;
+    } else if (!canPlay) {
+      el.title = "手番ではありません";
     } else {
-      el.title = "Ctrl+クリックで拡大（Mac は ⌘）";
+      el.title = "空気が足りません";
     }
 
     el.addEventListener("click", (ev) => {
@@ -1120,65 +1024,15 @@ function onGameState(state) {
         openCardZoomPreview(card.id, { actorSlot: duelActorYou });
         return;
       }
-      if (!canPlay) return;
-
-      const p2 = pendingChooseDiscard;
-      if (p2) {
-        if (idx === p2.playIndex) {
-          pendingChooseDiscard = null;
-          toast("選択をキャンセルしました");
-          onGameState(state);
-          return;
-        }
-        const post = postPlayIndexForDiscardPick(idx, p2.playIndex);
-        if (post === null) {
-          toast("使用するカード以外を選んでください");
-          return;
-        }
-        p2.picks.push(post);
-        if (new Set(p2.picks).size !== p2.picks.length) {
-          p2.picks.pop();
-          toast("同じ手札位置は2回選べません");
-          return;
-        }
-        if (p2.picks.length < p2.need) {
-          toast(`あと ${p2.need - p2.picks.length} 枚、捨てるカードを選んでください`);
-          onGameState(state);
-          return;
-        }
-        const playIx = p2.playIndex;
-        const picks = p2.picks.slice();
-        pendingChooseDiscard = null;
-        playCardAction(playIx, picks);
-        return;
-      }
-
-      if (!affordable) return;
-
-      if (chooseNeed > 0) {
-        if (state.you.hand.length - 1 < chooseNeed) {
-          toast("選んで捨てるには手札が足りません");
-          return;
-        }
-        pendingChooseDiscard = {
-          playIndex: idx,
-          need: chooseNeed,
-          picks: [],
-        };
-        toast(
-          `このカードを使うには、手札から${chooseNeed}枚選んで捨ててください`
-        );
-        onGameState(state);
-        return;
-      }
+      if (!canPlay || !affordable) return;
       playCardAction(idx);
     });
     hand.appendChild(el);
   });
 
   const btn = $("#btn-end-turn");
-  btn.disabled = myLock;
-  btn.textContent = myLock ? "確定済み" : "このラウンドを確定";
+  btn.disabled = !isYourTurn;
+  btn.textContent = "ターン終了";
 
   bindDuelLayoutMetricsOnce();
   renderDuelStatusRails(state);
@@ -1299,9 +1153,9 @@ function orderedUniqueDeckIds(ids) {
 
 function cardSearchBlob(card) {
   if (!card) return "";
-  const bits = [card.id, card.name];
-  for (const seg of card.body || []) {
-    if (seg && seg.t) bits.push(seg.t);
+  const bits = [card.id, card.speaker, card.text, card.name];
+  for (const e of cardEffectList(card)) {
+    bits.push(describeEffectShort(e));
   }
   return bits.join(" ").toLowerCase();
 }

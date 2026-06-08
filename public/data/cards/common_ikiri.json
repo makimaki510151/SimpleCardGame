@@ -1,0 +1,7 @@
+{
+  "id": "common_ikiri",
+  "speaker": "部長",
+  "text": "空気読め",
+  "cost": 1,
+  "effect": [{ "type": "damage", "value": 2 }]
+}

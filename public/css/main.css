@@ -381,7 +381,8 @@ h3 {
   flex-shrink: 0;
 }
 
-.card-title {
+.card-title,
+.card-speaker {
   font-size: 0.78rem;
   font-weight: 700;
   margin: 0;
@@ -389,6 +390,61 @@ h3 {
   line-height: 1.25;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-speaker {
+  color: #8ec8ff;
+}
+
+.card-quote {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-bottom: 0.35rem;
+}
+
+.card-effect-line {
+  font-size: 0.72rem;
+  color: var(--muted, #9aa3b2);
+  line-height: 1.35;
+}
+
+.card-combo-hint {
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  color: #c9a0ff;
+}
+
+.card-cost--reduced {
+  color: #b8e986;
+}
+
+.card-face.card-combo-ready {
+  box-shadow: 0 0 0 2px rgba(201, 160, 255, 0.55), 0 4px 18px rgba(120, 80, 200, 0.25);
+}
+
+.duel-speaker-block {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.duel-speaker-label {
+  color: var(--muted, #9aa3b2);
+}
+
+.duel-speaker-val {
+  font-weight: 700;
+  color: #8ec8ff;
+}
+
+.duel-stat-chip--speaker .duel-stat-chip-num {
+  color: #8ec8ff;
+  max-width: 5.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

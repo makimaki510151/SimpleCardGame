@@ -1,0 +1,10 @@
+{
+  "id": "b_chain",
+  "speaker": "B君",
+  "text": "マ？マジで？",
+  "cost": 2,
+  "effect": [{ "type": "damage", "value": 3 }],
+  "speaker_effect": {
+    "cost_reduction": 2
+  }
+}

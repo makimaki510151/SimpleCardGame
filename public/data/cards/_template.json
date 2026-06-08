@@ -1,0 +1,14 @@
+{
+  "id": "example_id",
+  "speaker": "A君",
+  "text": "ここに語録テキストを書く",
+  "cost": 2,
+  "effect": [
+    { "type": "damage", "value": 2 }
+  ],
+  "speaker_effect": {
+    "cost_reduction": 1,
+    "damage_multiplier": 1,
+    "effects": []
+  }
+}

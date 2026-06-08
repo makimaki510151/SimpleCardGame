@@ -138,13 +138,13 @@ export function createSkyWayP2P({
         Engine.createPlayerState(lobby.hostDeck),
         Engine.createPlayerState(lobby.guestDeck),
       ],
-      roundNumber: 1,
-      firstLocker: null,
+      turnNumber: 0,
+      firstPlayer: hostSlot,
+      activePlayer: null,
       log: [],
       _logSeq: 0,
-      lastPlayBySlot: [null, null],
     };
-    Engine.startRound(game);
+    Engine.startGame(game, hostSlot);
     emitGameBoth();
   }
 
@@ -204,31 +204,36 @@ export function createSkyWayP2P({
           game,
           item.slot,
           item.handIndex | 0,
-          cardById,
-          { discardPicks: normalizeDiscardPicks(item.discardPicks) }
+          cardById
         );
         if (!res.ok) {
           reportActionError(item.slot, res.reason);
         } else {
           emitted = true;
+          if (res.winnerIndex !== undefined) {
+            emitGameBoth();
+            broadcastDown({
+              t: "gameOver",
+              winnerSlot: res.winnerIndex,
+            });
+            game = null;
+            onGameOver({ winnerSlot: res.winnerIndex });
+            continue;
+          }
         }
       } else if (item.t === "endTurn") {
-        const lockRes = Engine.lockRound(game, item.slot);
-        if (!lockRes.ok) {
-          reportActionError(item.slot, lockRes.reason);
+        const res = Engine.endTurn(game, item.slot);
+        if (!res.ok) {
+          reportActionError(item.slot, res.reason);
         } else {
           emitted = true;
-          if (Engine.bothLocked(game)) {
-            const clash = Engine.resolveRound(game, cardById);
-            if (clash.winnerIndex !== undefined) {
-              emitGameBoth();
-              broadcastDown({
-                t: "gameOver",
-                winnerSlot: clash.winnerIndex,
-              });
-              game = null;
-              onGameOver({ winnerSlot: clash.winnerIndex });
-            }
+          const winner = game.players[0].hp <= 0 ? 1 : game.players[1].hp <= 0 ? 0 : null;
+          if (winner !== null) {
+            emitGameBoth();
+            broadcastDown({ t: "gameOver", winnerSlot: winner });
+            game = null;
+            onGameOver({ winnerSlot: winner });
+            continue;
           }
         }
       }

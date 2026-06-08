@@ -1,20 +1,18 @@
-const MAX_COST = 5;
+const MAX_COST = 10;
+
+function cardEffects(card) {
+  return card.effect || card.effects || [];
+}
 
 /**
  * 効果を数値ベクトルに畳み込み（完全上位互換判定用）。
- * 条件付きダメージ／回復は保守的に「常に成立」とみなしフル value を加算する。
- * attackIfFirstLockerResolve は先行確定時のみ交戦力へ反映するため集計に含めない。
- * damageIf / healIf / damageSelfIf を持つカードは assert でペア検査から除外する。
  */
 function aggregateForDominance(card) {
-  const eff = card.effects || [];
+  const eff = cardEffects(card);
   let dmg = 0;
   let heal = 0;
   let draw = 0;
   let selfDisc = 0;
-  let oppDisc = 0;
-  /** 相手の次ターンのコスト上限を下げる強さ（5 - cap の合計。大きいほど有利） */
-  let oppCostCapDrop = 0;
 
   for (const e of eff) {
     const v = e.value | 0;
@@ -29,12 +27,7 @@ function aggregateForDominance(card) {
         draw += v;
         break;
       case "discardSelf":
-      case "discardSelfChoose":
         selfDisc += v;
-        break;
-      case "discardOpponent":
-      case "negateOpponentNextPlay":
-        oppDisc += Math.max(1, v || 1);
         break;
       case "damageIf":
         dmg += v;
@@ -42,113 +35,72 @@ function aggregateForDominance(card) {
       case "healIf":
         heal += v;
         break;
-      case "attackIfFirstLockerResolve":
-        break;
-      case "capOpponentNextTurn": {
-        const cap = Math.max(1, Math.min(MAX_COST, e.cap | 0));
-        oppCostCapDrop += MAX_COST - cap;
-        break;
-      }
-      case "damageSelf":
-        selfDisc += v;
-        break;
-      case "damageSelfIf":
-        selfDisc += v;
-        break;
       default:
         break;
     }
   }
+
+  const se = card.speaker_effect;
+  if (se?.effects) {
+    for (const e of se.effects) {
+      const v = e.value | 0;
+      if (e.type === "damage") dmg += v;
+      else if (e.type === "heal") heal += v;
+      else if (e.type === "draw") draw += v;
+    }
+  }
+
   return {
     cost: card.cost | 0,
     dmg,
     heal,
     draw,
     selfDisc,
-    oppDisc,
-    oppCostCapDrop,
+    oppDisc: 0,
+    oppCostCapDrop: 0,
+    hasIf: eff.some((e) => e.type === "damageIf" || e.type === "healIf"),
   };
 }
 
-/**
- * A が B を完全上位互換（同コスト以下で効果面が全部弱くなく、どこかで厳密に劣る）にしているか。
- * 低コスト・高ダメージ等は「良い」方向。
- */
-function strictlyDominates(aVec, bVec) {
-  if (aVec.cost > bVec.cost) return false;
-  if (aVec.dmg < bVec.dmg) return false;
-  if (aVec.heal < bVec.heal) return false;
-  if (aVec.draw < bVec.draw) return false;
-  if (aVec.oppDisc < bVec.oppDisc) return false;
-  if (aVec.oppCostCapDrop < bVec.oppCostCapDrop) return false;
-  if (aVec.selfDisc > bVec.selfDisc) return false;
-
+function dominates(a, b) {
+  if (a.cost > b.cost) return false;
+  if (a.dmg < b.dmg) return false;
+  if (a.heal < b.heal) return false;
+  if (a.draw < b.draw) return false;
+  if (a.selfDisc > b.selfDisc) return false;
+  if (a.oppDisc < b.oppDisc) return false;
+  if (a.oppCostCapDrop < b.oppCostCapDrop) return false;
   const strict =
-    aVec.cost < bVec.cost ||
-    aVec.dmg > bVec.dmg ||
-    aVec.heal > bVec.heal ||
-    aVec.draw > bVec.draw ||
-    aVec.oppDisc > bVec.oppDisc ||
-    aVec.oppCostCapDrop > bVec.oppCostCapDrop ||
-    aVec.selfDisc < bVec.selfDisc;
-
+    a.cost < b.cost ||
+    a.dmg > b.dmg ||
+    a.heal > b.heal ||
+    a.draw > b.draw ||
+    a.selfDisc < b.selfDisc ||
+    a.oppDisc > b.oppDisc ||
+    a.oppCostCapDrop > b.oppCostCapDrop;
   return strict;
-}
-
-function cardHasFirstLockerResolve(card) {
-  return (card.effects || []).some((e) => e.type === "attackIfFirstLockerResolve");
-}
-
-function cardHasConditionalDamageIf(card) {
-  return (card.effects || []).some(
-    (e) => e.type === "damageIf" || e.type === "damageSelfIf"
-  );
-}
-
-function cardHasConditionalHealIf(card) {
-  return (card.effects || []).some((e) => e.type === "healIf");
 }
 
 function assertNoStrictDominance(byId) {
   const ids = Object.keys(byId);
-  const vecs = {};
-  for (const id of ids) {
-    vecs[id] = aggregateForDominance(byId[id]);
-  }
-  const pairs = [];
-  for (let i = 0; i < ids.length; i++) {
-    for (let j = 0; j < ids.length; j++) {
+  const vecs = ids.map((id) => ({ id, v: aggregateForDominance(byId[id]) }));
+  for (let i = 0; i < vecs.length; i++) {
+    for (let j = 0; j < vecs.length; j++) {
       if (i === j) continue;
-      const ida = ids[i];
-      const idb = ids[j];
-      if (
-        cardHasFirstLockerResolve(byId[ida]) ||
-        cardHasFirstLockerResolve(byId[idb])
-      ) {
-        continue;
-      }
-      if (
-        cardHasConditionalDamageIf(byId[ida]) ||
-        cardHasConditionalDamageIf(byId[idb]) ||
-        cardHasConditionalHealIf(byId[ida]) ||
-        cardHasConditionalHealIf(byId[idb])
-      ) {
-        continue;
-      }
-      if (strictlyDominates(vecs[ida], vecs[idb])) {
-        pairs.push({ dominant: ida, weaker: idb });
+      const a = vecs[i];
+      const b = vecs[j];
+      if (a.v.hasIf || b.v.hasIf) continue;
+      if (dominates(a.v, b.v)) {
+        throw new Error(
+          `Card balance: ${a.id} strictly dominates ${b.id} (same cost, better or equal in all axes)`
+        );
       }
     }
-  }
-  if (pairs.length) {
-    const msg = pairs
-      .map((p) => `${byId[p.dominant].name}(${p.dominant}) ⊃ ${byId[p.weaker].name}(${p.weaker})`)
-      .join("; ");
-    throw new Error(`完全上位互換のカードペアがあります: ${msg}`);
   }
 }
 
 module.exports = {
   aggregateForDominance,
   assertNoStrictDominance,
+  MAX_COST,
 };

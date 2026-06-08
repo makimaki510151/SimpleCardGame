@@ -55570,16 +55570,17 @@ function shuffle(array) {
   }
   return a;
 }
-var MAX_HP = 50;
-var MAX_COST_PER_TURN = 5;
-var DRAW_PER_TURN = 5;
-var FIRST_LOCK_ATTACK_BONUS = 2;
+var MAX_HP = 20;
+var MAX_COST_CAP = 10;
+var DRAW_PER_TURN = 1;
+var FIRST_PLAYER_INITIAL_MAX = 3;
+var SECOND_PLAYER_INITIAL_MAX = 4;
 var MAX_LOG = 40;
 function pushLog(game, slot, text, cardId, kind, meta) {
   if (!game.log) game.log = [];
   const entry = {
     seq: game._logSeq = (game._logSeq | 0) + 1,
-    round: game.roundNumber | 0,
+    turn: game.turnNumber | 0,
     slot,
     text,
     cardId: cardId || null,
@@ -55596,15 +55597,10 @@ function createPlayerState(deckIds) {
     deck,
     hand: [],
     discard: [],
-    costPool: MAX_COST_PER_TURN,
-    turnMaxCost: MAX_COST_PER_TURN,
-    costCapOnNextTurn: null,
-    attackStock: 0,
-    roundLocked: false,
-    /** このプレイヤーが次にカードを使おうとしたとき、回数分プレイが無効化される */
-    negateIncomingPlays: 0,
-    /** 先行確定時に attackStock へ加算する分（カード使用時に蓄積） */
-    pendingFirstLockAttack: 0
+    costPool: 0,
+    maxCost: 0,
+    turnCount: 0,
+    lastPlayedSpeaker: null
   };
 }
 function reshuffleDiscardIntoDeck(p) {
@@ -55651,98 +55647,77 @@ function evalCondition(game, actorIndex, cond) {
       return opp.hand.length <= (cond.threshold | 0);
     case "opponentHpLte":
       return opp.hp <= (cond.threshold | 0);
-    case "opponentAttackStockGte":
-      return (opp.attackStock | 0) >= (cond.threshold | 0);
-    case "opponentAttackStockLte":
-      return (opp.attackStock | 0) <= (cond.threshold | 0);
-    case "opponentLastCardIdIn": {
-      const ids = Array.isArray(cond.cardIds) ? cond.cardIds : [];
-      const last = (game.lastPlayBySlot || [])[1 - actorIndex];
-      return last != null && ids.includes(last);
+    case "selfLastSpeakerIs":
+      return self2.lastPlayedSpeaker === cond.speaker;
+    case "opponentLastSpeakerIs": {
+      const oppSpeaker = opp.lastPlayedSpeaker;
+      return oppSpeaker != null && oppSpeaker === cond.speaker;
     }
     default:
       return false;
   }
 }
-function discardEntireHand(p) {
-  while (p.hand.length > 0) {
-    p.discard.push(p.hand.pop());
-  }
+function cardEffects(cardDef) {
+  return cardDef.effect || cardDef.effects || [];
 }
-function applyCostCapForRound(p) {
-  const cap = p.costCapOnNextTurn != null ? Math.max(1, Math.min(MAX_COST_PER_TURN, p.costCapOnNextTurn | 0)) : MAX_COST_PER_TURN;
-  p.costCapOnNextTurn = null;
-  p.turnMaxCost = cap;
-  p.costPool = cap;
+function speakerCostReduction(cardDef, speakerCombo) {
+  if (!speakerCombo) return 0;
+  const se = cardDef.speaker_effect;
+  if (!se) return 1;
+  if (se.cost_reduction != null) return Math.max(0, se.cost_reduction | 0);
+  return 1;
 }
-function startRound(game) {
-  for (const p of game.players) {
-    p.roundLocked = false;
-    p.attackStock = 0;
-    p.pendingFirstLockAttack = 0;
-    applyCostCapForRound(p);
-    const drawn = drawCards(p, DRAW_PER_TURN);
-    p.hand.push(...drawn);
+function effectivePlayCost(cardDef, lastPlayedSpeaker) {
+  const base = cardDef.cost | 0;
+  const speaker = cardDef.speaker;
+  if (!speaker || !lastPlayedSpeaker || speaker !== lastPlayedSpeaker) {
+    return base;
   }
-  game.firstLocker = null;
-  game.lastPlayBySlot = [null, null];
-  pushLog(
-    game,
-    null,
-    `\u30E9\u30A6\u30F3\u30C9 ${game.roundNumber} \u2014 \u540C\u6642\u884C\u52D5\u3002\u30AB\u30FC\u30C9\u3092\u4F7F\u3044\u300C\u78BA\u5B9A\u300D\u3067\u4EA4\u6226\u3078`,
-    null,
-    "system"
-  );
+  const reduction = speakerCostReduction(cardDef, true);
+  return Math.max(0, base - reduction);
 }
-function sumDiscardSelfChoose(effects) {
-  let n2 = 0;
-  for (const e2 of effects || []) {
-    if (e2.type === "discardSelfChoose") n2 += e2.value | 0;
-  }
-  return n2;
+function damageMultiplier(cardDef, speakerCombo) {
+  if (!speakerCombo) return 1;
+  const se = cardDef.speaker_effect;
+  if (!se || se.damage_multiplier == null) return 1;
+  return Math.max(1, se.damage_multiplier | 0);
+}
+function scaledDamage(value, mult) {
+  return Math.max(0, (value | 0) * mult);
+}
+function checkWinner(game) {
+  if (game.players[0].hp <= 0) return 1;
+  if (game.players[1].hp <= 0) return 0;
+  return null;
 }
 function describeEffectLine(e2) {
   const v = e2.value | 0;
   switch (e2.type) {
     case "damage":
-      return `\u4EA4\u6226\u529B${v}`;
+      return `\u76F8\u624B\u306B${v}\u30C0\u30E1\u30FC\u30B8`;
     case "damageIf":
-      return `\u4EA4\u6226\u529B${v}\uFF08\u6761\u4EF6\uFF09`;
+      return `\u6761\u4EF6\u3067\u76F8\u624B\u306B${v}\u30C0\u30E1\u30FC\u30B8`;
     case "heal":
       return `\u81EA\u8EAB\u56DE\u5FA9${v}`;
+    case "healIf":
+      return `\u6761\u4EF6\u3067\u81EA\u8EAB\u56DE\u5FA9${v}`;
     case "draw":
-      return `\u30AB\u30FC\u30C9\u30C9\u30ED\u30FC${v}`;
+      return `\u30C9\u30ED\u30FC${v}`;
     case "discardSelf":
       return `\u81EA\u8EAB\u624B\u672D\u30E9\u30F3\u30C0\u30E0\u5EC3\u68C4${v}`;
-    case "discardSelfChoose":
-      return `\u81EA\u8EAB\u624B\u672D\u9078\u629E\u5EC3\u68C4${v}`;
-    case "discardOpponent":
-      return `\u76F8\u624B\u624B\u672D\u30E9\u30F3\u30C0\u30E0\u5EC3\u68C4${v}`;
-    case "negateOpponentNextPlay":
-      return `\u76F8\u624B\u6B21\u30D7\u30EC\u30A4\u7121\u52B9${Math.max(1, v || 1)}`;
-    case "healIf":
-      return `\u81EA\u8EAB\u56DE\u5FA9${v}\uFF08\u6761\u4EF6\uFF09`;
-    case "capOpponentNextTurn":
-      return `\u6B21\u30BF\u30FC\u30F3\u76F8\u624B\u30B3\u30B9\u30C8\u4E0A\u9650${e2.cap | 0}`;
-    case "damageSelf":
-      return `\u81EA\u8EAB\u30C0\u30E1\u30FC\u30B8${v}`;
-    case "damageSelfIf":
-      return `\u81EA\u8EAB\u30C0\u30E1\u30FC\u30B8${v}\uFF08\u6761\u4EF6\uFF09`;
-    case "attackIfFirstLockerResolve":
-      return `\u5148\u884C\u78BA\u5B9A\u6642\u4EA4\u6226\u529B${v}`;
     default:
       return e2.type || "?";
   }
 }
-function applyCardEffects(game, actorIndex, cardDef, ctx = {}) {
+function applyEffectList(game, actorIndex, effects, ctx) {
   const opponentIndex = 1 - actorIndex;
   const self2 = game.players[actorIndex];
   const opp = game.players[opponentIndex];
-  const effects = cardDef.effects || [];
-  const choosePool = ctx.chooseDiscardPool && ctx.chooseDiscardPool.length ? ctx.chooseDiscardPool : null;
-  for (const e2 of effects) {
+  const mult = ctx.damageMultiplier || 1;
+  for (const e2 of effects || []) {
     if (e2.type === "damage") {
-      self2.attackStock += e2.value | 0;
+      const d = scaledDamage(e2.value, mult);
+      opp.hp = Math.max(0, opp.hp - d);
     } else if (e2.type === "heal") {
       self2.hp = Math.min(MAX_HP, self2.hp + (e2.value | 0));
     } else if (e2.type === "draw") {
@@ -55750,196 +55725,105 @@ function applyCardEffects(game, actorIndex, cardDef, ctx = {}) {
       self2.hand.push(...drawn);
     } else if (e2.type === "discardSelf") {
       discardRandomFromHand(self2, e2.value | 0);
-    } else if (e2.type === "discardSelfChoose" && !ctx.skipDiscardSelfChoose) {
-      const n2 = e2.value | 0;
-      for (let k = 0; k < n2; k++) {
-        if (!choosePool || choosePool.length === 0) break;
-        const ix = choosePool.shift();
-        if (ix < 0 || ix >= self2.hand.length) break;
-        const id = self2.hand.splice(ix, 1)[0];
-        self2.discard.push(id);
-      }
-    } else if (e2.type === "discardOpponent" || e2.type === "negateOpponentNextPlay") {
-      const n2 = Math.max(1, e2.value | 0);
-      opp.negateIncomingPlays = (opp.negateIncomingPlays | 0) + n2;
     } else if (e2.type === "damageIf") {
       if (evalCondition(game, actorIndex, e2)) {
-        self2.attackStock += e2.value | 0;
+        const d = scaledDamage(e2.value, mult);
+        opp.hp = Math.max(0, opp.hp - d);
       }
     } else if (e2.type === "healIf") {
       if (evalCondition(game, actorIndex, e2)) {
         self2.hp = Math.min(MAX_HP, self2.hp + (e2.value | 0));
       }
-    } else if (e2.type === "capOpponentNextTurn") {
-      const cap = Math.max(1, Math.min(MAX_COST_PER_TURN, e2.cap | 0));
-      opp.costCapOnNextTurn = cap;
-    } else if (e2.type === "damageSelf") {
-      self2.hp = Math.max(0, self2.hp - (e2.value | 0));
-    } else if (e2.type === "damageSelfIf") {
-      if (evalCondition(game, actorIndex, e2)) {
-        self2.hp = Math.max(0, self2.hp - (e2.value | 0));
-      }
-    } else if (e2.type === "attackIfFirstLockerResolve") {
-      self2.pendingFirstLockAttack = (self2.pendingFirstLockAttack | 0) + (e2.value | 0);
     }
   }
 }
-function playCard(game, playerIndex, handIndex, cardById, opts = {}) {
+function startGame(game, firstPlayer = 0) {
+  game.firstPlayer = firstPlayer | 0;
+  game.turnNumber = 0;
+  game.activePlayer = null;
+  startTurn(game, game.firstPlayer);
+}
+function startTurn(game, playerIndex) {
   const p = game.players[playerIndex];
-  if (p.roundLocked) {
-    return { ok: false, reason: "\u78BA\u5B9A\u6E08\u307F\u306E\u305F\u3081\u30AB\u30FC\u30C9\u306F\u4F7F\u3048\u307E\u305B\u3093\u3002" };
+  if (p.turnCount === 0) {
+    p.maxCost = playerIndex === game.firstPlayer ? FIRST_PLAYER_INITIAL_MAX : SECOND_PLAYER_INITIAL_MAX;
+  } else {
+    p.maxCost = Math.min(MAX_COST_CAP, p.maxCost + 1);
   }
+  p.turnCount += 1;
+  p.costPool = p.maxCost;
+  p.lastPlayedSpeaker = null;
+  const drawn = drawCards(p, DRAW_PER_TURN);
+  p.hand.push(...drawn);
+  game.turnNumber = (game.turnNumber | 0) + 1;
+  game.activePlayer = playerIndex;
+  const who = playerIndex === game.firstPlayer ? "\u5148\u653B" : "\u5F8C\u653B";
+  pushLog(
+    game,
+    playerIndex,
+    `\u30BF\u30FC\u30F3${game.turnNumber} \u2014 ${who}\u306E\u624B\u756A\uFF08\u7A7A\u6C17 ${p.costPool}/${p.maxCost}\uFF09`,
+    null,
+    "system"
+  );
+}
+function playCard(game, playerIndex, handIndex, cardById) {
+  if (game.activePlayer !== playerIndex) {
+    return { ok: false, reason: "\u624B\u756A\u3067\u306F\u3042\u308A\u307E\u305B\u3093\u3002" };
+  }
+  const p = game.players[playerIndex];
   if (handIndex < 0 || handIndex >= p.hand.length) {
     return { ok: false, reason: "\u624B\u672D\u304C\u4E0D\u6B63\u3067\u3059\u3002" };
   }
   const cardId = p.hand[handIndex];
   const def = cardById[cardId];
   if (!def) return { ok: false, reason: "\u30AB\u30FC\u30C9\u5B9A\u7FA9\u304C\u3042\u308A\u307E\u305B\u3093\u3002" };
-  const cost = def.cost | 0;
-  if (cost > p.costPool) {
-    return { ok: false, reason: "\u30B3\u30B9\u30C8\u304C\u8DB3\u308A\u307E\u305B\u3093\u3002" };
+  const speakerCombo = !!def.speaker && p.lastPlayedSpeaker != null && def.speaker === p.lastPlayedSpeaker;
+  const payCost = effectivePlayCost(def, p.lastPlayedSpeaker);
+  if (payCost > p.costPool) {
+    return { ok: false, reason: "\u30B3\u30B9\u30C8\uFF08\u7A7A\u6C17\uFF09\u304C\u8DB3\u308A\u307E\u305B\u3093\u3002" };
   }
-  const needChoose = sumDiscardSelfChoose(def.effects);
-  const picks = opts.discardPicks;
-  const L = p.hand.length;
-  if (needChoose > 0) {
-    if (!Array.isArray(picks) || picks.length !== needChoose) {
-      return {
-        ok: false,
-        reason: `\u3053\u306E\u30AB\u30FC\u30C9\u306F\u4F7F\u7528\u6642\u306B\u624B\u672D\u3092${needChoose}\u679A\u9078\u3093\u3067\u6368\u3066\u308B\u5FC5\u8981\u304C\u3042\u308A\u307E\u3059\u3002`
-      };
-    }
-    if (L - 1 < needChoose) {
-      return { ok: false, reason: "\u9078\u3093\u3067\u6368\u3066\u308B\u624B\u672D\u304C\u8DB3\u308A\u307E\u305B\u3093\u3002" };
-    }
-    const uniq = new Set(picks);
-    if (uniq.size !== picks.length) {
-      return { ok: false, reason: "\u6368\u3066\u308B\u624B\u672D\u306E\u6307\u5B9A\u304C\u91CD\u8907\u3057\u3066\u3044\u307E\u3059\u3002" };
-    }
-    for (const ix of picks) {
-      const n2 = ix | 0;
-      if (n2 < 0 || n2 >= L - 1) {
-        return { ok: false, reason: "\u6368\u3066\u308B\u624B\u672D\u306E\u6307\u5B9A\u304C\u4E0D\u6B63\u3067\u3059\u3002" };
-      }
-    }
-  } else if (picks && picks.length > 0) {
-    return { ok: false, reason: "\u3053\u306E\u30AB\u30FC\u30C9\u3067\u306F\u624B\u672D\u306E\u6307\u5B9A\u6368\u3066\u306F\u4E0D\u8981\u3067\u3059\u3002" };
-  }
-  const choosePool = needChoose > 0 ? [...picks].sort((a, b) => b - a) : null;
-  const negated = (p.negateIncomingPlays | 0) > 0;
-  if (negated) {
-    p.negateIncomingPlays -= 1;
-  }
-  p.costPool -= cost;
+  p.costPool -= payCost;
   p.hand.splice(handIndex, 1);
   p.discard.push(cardId);
-  if (negated && needChoose > 0 && choosePool) {
-    for (let k = 0; k < needChoose; k++) {
-      if (!choosePool.length) break;
-      const ix = choosePool.shift();
-      if (ix < 0 || ix >= p.hand.length) break;
-      const rid = p.hand.splice(ix, 1)[0];
-      p.discard.push(rid);
+  const ctx = {
+    damageMultiplier: damageMultiplier(def, speakerCombo),
+    speakerCombo
+  };
+  if (speakerCombo) {
+    const se = def.speaker_effect;
+    if (se?.effects?.length) {
+      applyEffectList(game, playerIndex, se.effects, ctx);
     }
   }
-  if (!game.lastPlayBySlot) game.lastPlayBySlot = [null, null];
-  game.lastPlayBySlot[playerIndex] = cardId;
-  if (negated) {
-    pushLog(
-      game,
-      playerIndex,
-      `\u7121\u52B9\u5316 \u2014 ${def.name || cardId} \u306F\u52B9\u679C\u306E\u307F\u767A\u52D5\u305B\u305A\uFF08\u30B3\u30B9\u30C8${cost}\u30FB\u6368\u3066\u672D\u5316\uFF09`,
-      cardId,
-      "negate"
-    );
-    return { ok: true, negated: true };
+  applyEffectList(game, playerIndex, cardEffects(def), ctx);
+  p.lastPlayedSpeaker = def.speaker || null;
+  const label = def.text || def.name || cardId;
+  const effText = cardEffects(def).map(describeEffectLine).join(" / ");
+  let logText = label;
+  if (speakerCombo) {
+    logText += "\uFF08\u767A\u8A00\u8005\u30B3\u30F3\u30DC\uFF09";
   }
-  applyCardEffects(game, playerIndex, def, {
-    chooseDiscardPool: choosePool,
-    skipDiscardSelfChoose: false
+  if (effText) logText += ` \u2014 ${effText}`;
+  if (payCost !== (def.cost | 0)) {
+    logText += ` [\u30B3\u30B9\u30C8${def.cost}\u2192${payCost}]`;
+  }
+  pushLog(game, playerIndex, logText, cardId, "play", {
+    speakerCombo,
+    payCost
   });
-  const effText = (def.effects || []).map(describeEffectLine).join(" / ");
-  pushLog(
-    game,
-    playerIndex,
-    `${def.name || cardId}${effText ? ` \u2014 ${effText}` : ""}`,
-    cardId,
-    "play"
-  );
-  return { ok: true };
+  const winner = checkWinner(game);
+  if (winner !== null) {
+    return { ok: true, winnerIndex: winner };
+  }
+  return { ok: true, speakerCombo };
 }
-function lockRound(game, playerIndex) {
-  const p = game.players[playerIndex];
-  if (p.roundLocked) {
-    return { ok: false, reason: "\u3059\u3067\u306B\u78BA\u5B9A\u6E08\u307F\u3067\u3059\u3002" };
+function endTurn(game, playerIndex) {
+  if (game.activePlayer !== playerIndex) {
+    return { ok: false, reason: "\u624B\u756A\u3067\u306F\u3042\u308A\u307E\u305B\u3093\u3002" };
   }
-  p.roundLocked = true;
-  if (game.firstLocker === null) {
-    game.firstLocker = playerIndex;
-    p.attackStock += FIRST_LOCK_ATTACK_BONUS;
-    pushLog(
-      game,
-      playerIndex,
-      `\u5148\u306B\u78BA\u5B9A \u2014 \u4EA4\u6226\u529B+${FIRST_LOCK_ATTACK_BONUS}\uFF08\u5148\u78BA\u5B9A\u30DC\u30FC\u30CA\u30B9\uFF09`,
-      null,
-      "lock"
-    );
-    const delayed = p.pendingFirstLockAttack | 0;
-    if (delayed > 0) {
-      p.attackStock += delayed;
-      p.pendingFirstLockAttack = 0;
-      pushLog(
-        game,
-        playerIndex,
-        `\u5148\u884C\u78BA\u5B9A \u2014 \u4EA4\u6226\u529B+${delayed}\uFF08\u30AB\u30FC\u30C9\u52B9\u679C\uFF09`,
-        null,
-        "lock"
-      );
-    }
-  } else {
-    pushLog(game, playerIndex, "\u30E9\u30A6\u30F3\u30C9\u78BA\u5B9A", null, "lock");
-  }
-  return { ok: true };
-}
-function bothLocked(game) {
-  return game.players[0].roundLocked && game.players[1].roundLocked;
-}
-function resolveRound(game, cardById) {
-  const a0 = game.players[0].attackStock;
-  const a1 = game.players[1].attackStock;
-  if (a0 > a1) {
-    const d = a0 - a1;
-    game.players[1].hp = Math.max(0, game.players[1].hp - d);
-    pushLog(game, 1, "", null, "clash", {
-      clashDamage: true,
-      damage: d,
-      winnerAttack: a0,
-      loserAttack: a1,
-      victimSlot: 1
-    });
-  } else if (a1 > a0) {
-    const d = a1 - a0;
-    game.players[0].hp = Math.max(0, game.players[0].hp - d);
-    pushLog(game, 0, "", null, "clash", {
-      clashDamage: true,
-      damage: d,
-      winnerAttack: a1,
-      loserAttack: a0,
-      victimSlot: 0
-    });
-  } else {
-    pushLog(game, null, `\u4EA4\u6226 \u2014 \u540C\u5024\uFF08${a0}\uFF09\u3067\u30C0\u30E1\u30FC\u30B8\u306A\u3057`, null, "clash");
-  }
-  for (const p of game.players) {
-    discardEntireHand(p);
-  }
-  if (game.players[0].hp <= 0 || game.players[1].hp <= 0) {
-    const winnerIndex = game.players[0].hp <= 0 ? 1 : 0;
-    return { winnerIndex };
-  }
-  game.roundNumber += 1;
-  game.firstLocker = null;
-  startRound(game);
+  pushLog(game, playerIndex, "\u30BF\u30FC\u30F3\u7D42\u4E86", null, "endTurn");
+  const next = 1 - playerIndex;
+  startTurn(game, next);
   return { ok: true };
 }
 function publicSnapshot(game, viewerIndex, cardById) {
@@ -55954,12 +55838,9 @@ function publicSnapshot(game, viewerIndex, cardById) {
       deckCount: self2.deck.length,
       discardCount: self2.discard.length,
       costPool: self2.costPool,
-      maxCost: self2.turnMaxCost ?? MAX_COST_PER_TURN,
-      attackStock: self2.attackStock,
-      pendingFirstLockAttack: self2.pendingFirstLockAttack | 0,
-      roundLocked: self2.roundLocked,
-      negateIncomingPlays: self2.negateIncomingPlays,
-      costCapNextTurn: self2.costCapOnNextTurn
+      maxCost: self2.maxCost,
+      lastPlayedSpeaker: self2.lastPlayedSpeaker,
+      turnCount: self2.turnCount
     },
     opponent: {
       hp: opp.hp,
@@ -55968,16 +55849,15 @@ function publicSnapshot(game, viewerIndex, cardById) {
       handCount: opp.hand.length,
       deckCount: opp.deck.length,
       discardCount: opp.discard.length,
-      attackStock: opp.attackStock,
-      roundLocked: opp.roundLocked,
-      negateIncomingPlays: opp.negateIncomingPlays,
-      pendingFirstLockAttack: opp.pendingFirstLockAttack | 0,
-      costCapNextTurn: opp.costCapOnNextTurn
+      lastPlayedSpeaker: opp.lastPlayedSpeaker,
+      costPool: opp.costPool,
+      maxCost: opp.maxCost
     },
-    roundNumber: game.roundNumber,
+    turnNumber: game.turnNumber,
+    activePlayer: game.activePlayer,
+    isYourTurn: game.activePlayer === viewerIndex,
+    firstPlayer: game.firstPlayer,
     youAre: viewerIndex,
-    firstLocker: game.firstLocker,
-    lastPlayBySlot: (game.lastPlayBySlot || [null, null]).slice(),
     battleLog: (game.log || []).slice()
   };
 }
@@ -55988,11 +55868,6 @@ var META_UPLINK = JSON.stringify({ scg: "uplink" });
 function parsePayload(data) {
   const s = typeof data === "string" ? data : JSON.stringify(data);
   return JSON.parse(s);
-}
-function normalizeDiscardPicks(raw) {
-  if (!Array.isArray(raw)) return void 0;
-  const out = raw.map((x) => Number(x) | 0);
-  return out.length ? out : void 0;
 }
 function validateDeck(cardIds, byId) {
   if (!Array.isArray(cardIds) || cardIds.length !== 20) {
@@ -56105,13 +55980,13 @@ function createSkyWayP2P({
         createPlayerState(lobby.hostDeck),
         createPlayerState(lobby.guestDeck)
       ],
-      roundNumber: 1,
-      firstLocker: null,
+      turnNumber: 0,
+      firstPlayer: hostSlot,
+      activePlayer: null,
       log: [],
-      _logSeq: 0,
-      lastPlayBySlot: [null, null]
+      _logSeq: 0
     };
-    startRound(game);
+    startGame(game, hostSlot);
     emitGameBoth();
   }
   const actionQueue = [];
@@ -56162,31 +56037,36 @@ function createSkyWayP2P({
           game,
           item.slot,
           item.handIndex | 0,
-          cardById,
-          { discardPicks: normalizeDiscardPicks(item.discardPicks) }
+          cardById
         );
         if (!res.ok) {
           reportActionError(item.slot, res.reason);
         } else {
           emitted = true;
+          if (res.winnerIndex !== void 0) {
+            emitGameBoth();
+            broadcastDown({
+              t: "gameOver",
+              winnerSlot: res.winnerIndex
+            });
+            game = null;
+            onGameOver({ winnerSlot: res.winnerIndex });
+            continue;
+          }
         }
       } else if (item.t === "endTurn") {
-        const lockRes = lockRound(game, item.slot);
-        if (!lockRes.ok) {
-          reportActionError(item.slot, lockRes.reason);
+        const res = endTurn(game, item.slot);
+        if (!res.ok) {
+          reportActionError(item.slot, res.reason);
         } else {
           emitted = true;
-          if (bothLocked(game)) {
-            const clash = resolveRound(game, cardById);
-            if (clash.winnerIndex !== void 0) {
-              emitGameBoth();
-              broadcastDown({
-                t: "gameOver",
-                winnerSlot: clash.winnerIndex
-              });
-              game = null;
-              onGameOver({ winnerSlot: clash.winnerIndex });
-            }
+          const winner = game.players[0].hp <= 0 ? 1 : game.players[1].hp <= 0 ? 0 : null;
+          if (winner !== null) {
+            emitGameBoth();
+            broadcastDown({ t: "gameOver", winnerSlot: winner });
+            game = null;
+            onGameOver({ winnerSlot: winner });
+            continue;
           }
         }
       }

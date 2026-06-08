@@ -1,0 +1,15 @@
+{
+  "id": "b_finisher",
+  "speaker": "B君",
+  "text": "終わったな",
+  "cost": 5,
+  "effect": [
+    {
+      "type": "damageIf",
+      "mode": "opponentHpLte",
+      "threshold": 10,
+      "value": 6
+    },
+    { "type": "damage", "value": 3 }
+  ]
+}

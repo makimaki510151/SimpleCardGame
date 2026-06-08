@@ -1,0 +1,10 @@
+{
+  "id": "a_mata_ka",
+  "speaker": "A君",
+  "text": "またそれ言うの！？",
+  "cost": 1,
+  "effect": [{ "type": "damage", "value": 1 }],
+  "speaker_effect": {
+    "effects": [{ "type": "draw", "value": 1 }]
+  }
+}
