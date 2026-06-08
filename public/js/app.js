@@ -717,6 +717,16 @@ function renderCardBody(container, card, duelCtx) {
   appendComboHint(container, card, duelCtx);
 }
 
+function makeCardBackFace() {
+  const root = document.createElement("div");
+  root.className = "card-face card-back";
+  root.setAttribute("aria-hidden", "true");
+  const inner = document.createElement("div");
+  inner.className = "card-back-inner";
+  root.appendChild(inner);
+  return root;
+}
+
 function makeCardFace(card, { wide, duelCtx } = {}) {
   const root = document.createElement("div");
   root.className = wide ? "card-face wide" : "card-face";
@@ -1305,9 +1315,7 @@ function onGameState(state) {
 
   const isYourTurn = !!state.isYourTurn;
   const duelActorYou = state.youAre | 0;
-  const duelActorOpp = 1 - duelActorYou;
   const selfDuelCtx = { state, actorSlot: duelActorYou };
-  const oppDuelCtx = { state, actorSlot: duelActorOpp };
   pendingChooseDiscard = null;
 
   const banner = $("#turn-banner");
@@ -1323,16 +1331,10 @@ function onGameState(state) {
   const oppStrip = $("#opp-hand-cards");
   if (oppStrip) {
     oppStrip.textContent = "";
-    const oh = state.opponent.hand || [];
-    for (const c of oh) {
-      const el = makeCardFace(c, { duelCtx: oppDuelCtx });
-      el.title = "クリックで拡大表示";
-      el.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        openCardZoomPreview(c.id, { actorSlot: duelActorOpp });
-      });
-      oppStrip.appendChild(el);
+    const oppHandCount =
+      state.opponent.handCount ?? state.opponent.hand?.length ?? 0;
+    for (let i = 0; i < oppHandCount; i++) {
+      oppStrip.appendChild(makeCardBackFace());
     }
   }
 
@@ -1385,8 +1387,11 @@ function onGameState(state) {
   });
 
   const btn = $("#btn-end-turn");
-  btn.disabled = !isYourTurn;
-  btn.textContent = "ターン終了";
+  if (btn) {
+    btn.hidden = !isYourTurn;
+    btn.disabled = !isYourTurn;
+    btn.textContent = "ターン終了";
+  }
 
   bindDuelLayoutMetricsOnce();
   renderDuelStatusRails(state);

@@ -771,7 +771,6 @@ export function publicSnapshot(game, viewerIndex, cardById) {
     opponent: {
       hp: opp.hp,
       maxHp: MAX_HP,
-      hand: opp.hand.map((id) => cardById[id]),
       handCount: opp.hand.length,
       deckCount: opp.deck.length,
       discardCount: opp.discard.length,
